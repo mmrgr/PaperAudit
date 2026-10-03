@@ -1,0 +1,56 @@
+version: 1
+name: paperaudit-academic-skill-registry
+principles:
+  - evidence_before_style
+  - preserve_numbers_results_and_citations
+  - no_external_lookup_without_explicit_trigger
+  - user_confirmation_before_revision
+skills:
+  - id: paper_audit
+    version: 0.2.0
+    source: project
+    trigger: always
+    outputs: [grounded_findings, evidence_gate, regression_report]
+    boundary: "Owns orchestration, deterministic checks, grounding, reporting, and safe DOCX revision."
+  - id: nature_reader
+    version: external
+    source: local_skill
+    trigger: "PDF or full-paper source with page/figure/table anchors"
+    outputs: [source_map, section_context, extraction_uncertainty]
+    boundary: "Extracts and anchors source material; does not decide whether a claim is correct."
+  - id: nature_writing
+    version: external
+    source: local_skill
+    trigger: "argument, gap, contribution, section architecture"
+    outputs: [claim_evidence_map, missing_inputs, bounded_rewrite]
+    boundary: "Repairs argument structure without inventing data, methods, results, or citations."
+  - id: nature_polishing
+    version: external
+    source: local_skill
+    trigger: "prose polish after argument review"
+    outputs: [language_diagnosis, bounded_rewrite, change_log]
+    boundary: "Polishes only after logic is sound and preserves scientific content."
+  - id: academic_humanizer
+    version: external
+    source: local_skill
+    trigger: "academic prose clarity and claim-evidence discipline"
+    outputs: [claim_evidence_audit, bounded_rewrite, change_log]
+    boundary: "Never changes numbers, results, citations, or authorial scientific claims."
+  - id: nature_citation
+    version: external
+    source: local_skill
+    trigger: "explicit citation search, support, or export request"
+    outputs: [support_grade, citation_export, missing_inputs]
+    boundary: "Opt-in external lookup; metadata-only candidates cannot support a claim."
+  - id: nature_data
+    version: external
+    source: local_skill
+    trigger: "data/code availability or FAIR audit"
+    outputs: [data_availability_audit, repository_actions, missing_inputs]
+    boundary: "Does not rewrite methods or statistics."
+  - id: nature_response
+    version: external
+    source: local_skill
+    trigger: "reviewer or editor comments are provided"
+    outputs: [comment_tracker, response_mapping, author_input_flags]
+    boundary: "Only handles existing review comments; never invents responses or changes."

@@ -1,0 +1,8 @@
+.ruff_cache/
+__pycache__/
+*.py[cod]
+build/
+out/
+src/paperaudit.egg-info/
+tests/_tmp/
+*.log

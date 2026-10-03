@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "paperaudit"
+version = "0.2.0"
+description = "投前自审的验证器：对 Word 论文/开题报告做确定性审查，输出可逐条核查的问题清单"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "python-docx>=1.1",
+    "PyYAML>=6.0",
+]
+
+[project.scripts]
+paperaudit = "paperaudit.cli:main"
+paperaudit-desktop = "paperaudit.desktop:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+paperaudit = ["py.typed", "static/*.html"]

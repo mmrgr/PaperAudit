@@ -1,0 +1,22 @@
+"""Locate PaperAudit resources in source and frozen (PyInstaller) runs."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+
+def resource_path(*parts: str) -> Path:
+    """Return the first existing bundled/project resource path."""
+    candidates: list[Path] = []
+    if getattr(sys, "_MEIPASS", None):
+        candidates.append(Path(sys._MEIPASS))
+    candidates.append(Path(sys.executable).resolve().parent)
+    # Source tree: src/paperaudit/resources.py -> project root is parents[2].
+    candidates.append(Path(__file__).resolve().parents[2])
+    for root in candidates:
+        candidate = root.joinpath(*parts)
+        if candidate.exists():
+            return candidate
+    return candidates[0].joinpath(*parts)
+

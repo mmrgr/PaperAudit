@@ -1,0 +1,22 @@
+version: 1
+routes:
+  - role: argument_reviewer
+    groups: [structure, argument, consistency]
+    skills: [paper_audit, nature_writing]
+    evidence_mode: source_quote_and_claim_map
+  - role: method_data_reviewer
+    groups: [method, data]
+    skills: [paper_audit, nature_writing, nature_data]
+    evidence_mode: source_quote_and_reproducibility_fields
+  - role: citation_figure_reviewer
+    groups: [citation, figure]
+    skills: [paper_audit, nature_reader, nature_citation]
+    evidence_mode: source_quote_and_support_grade
+  - role: language_editor
+    groups: [language, consistency]
+    skills: [paper_audit, academic_humanizer, nature_polishing]
+    evidence_mode: source_quote_and_change_log
+  - role: skeptical_adjudicator
+    groups: [all]
+    skills: [paper_audit, academic_humanizer]
+    evidence_mode: quote_gate_and_conservative_adjudication
