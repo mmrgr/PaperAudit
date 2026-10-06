@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+title: PaperAudit
+message: "If PaperAudit supports your work, please cite or acknowledge the project."
+type: software
+version: 0.2.0
+date-released: 2026-10-06
+authors:
+  - name: PaperAudit contributors
+repository-code: https://github.com/mmrgr/PaperAudit
+license: MIT

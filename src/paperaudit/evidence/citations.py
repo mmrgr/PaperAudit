@@ -72,7 +72,35 @@ def _unused_and_missing(doc: DocumentIR) -> list[Finding]:
     """列而未引 / 引而未录。"""
     out: list[Finding] = []
     entries = {e.index: e for e in doc.citations if e.index is not None}
-    if not entries:
+    author_year_entries = {e.key: e for e in doc.citations if e.index is None and "|" in e.key}
+    if not entries and not author_year_entries:
+        return out
+
+    if not entries and author_year_entries:
+        cited = {m.key for m in doc.citation_marks if "|" in m.key}
+        listed = set(author_year_entries)
+        unused = sorted(listed - cited)
+        missing = sorted(cited - listed)
+        if unused:
+            out.append(
+                _mk(
+                    IssueType.CITATION_UNUSED,
+                    Severity.MINOR,
+                    f"列而未引：作者-年份参考文献中 {len(unused)} 条未在正文出现。",
+                    [author_year_entries[key].block_id for key in unused],
+                    refs=unused,
+                )
+            )
+        if missing:
+            out.append(
+                _mk(
+                    IssueType.CITATION_MISSING,
+                    Severity.MAJOR,
+                    f"引而未录：正文出现 {len(missing)} 个作者-年份引用，但参考文献表中没有对应条目。",
+                    [m.block_id for m in doc.citation_marks if m.key in missing],
+                    refs=missing,
+                )
+            )
         return out
 
     cited: set[int] = set()

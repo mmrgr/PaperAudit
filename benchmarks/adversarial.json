@@ -1,0 +1,168 @@
+{
+  "version": "benchmark-adversarial-v1",
+  "name": "PaperAudit controlled adversarial regression corpus",
+  "description": "Small de-identified DocumentIR cases for citation, cross-reference, numeric, terminology, and structure false-positive guards.",
+  "cases": [
+    {
+      "id": "citation-duplicate-entry",
+      "detectors": ["citations"],
+      "document": {
+        "blocks": [
+          {"id": "p1", "kind": "paragraph", "text": "Prior work supports this result [1]."},
+          {"id": "r1", "kind": "biblio_entry", "is_bibliography": true, "text": "[1] First reference."},
+          {"id": "r2", "kind": "biblio_entry", "is_bibliography": true, "text": "[1] Duplicate reference."}
+        ],
+        "citations": [
+          {"index": 1, "key": "1", "raw": "[1] First reference.", "block_id": "r1"},
+          {"index": 1, "key": "1", "raw": "[1] Duplicate reference.", "block_id": "r2"}
+        ],
+        "citation_marks": [{"raw": "[1]", "key": "1", "block_id": "p1", "char_range": [34, 37]}]
+      },
+      "expected": [{"issue_type": "citation_numbering", "severity": "major", "block_ids": ["r1", "r2"]}]
+    },
+    {
+      "id": "citation-first-appearance-order",
+      "detectors": ["citations"],
+      "document": {
+        "blocks": [
+          {"id": "p1", "kind": "paragraph", "text": "The later study is cited first [2]."},
+          {"id": "p2", "kind": "paragraph", "text": "The earlier study follows [1]."},
+          {"id": "p3", "kind": "paragraph", "text": "The final study is cited later [3]."},
+          {"id": "r1", "kind": "biblio_entry", "is_bibliography": true, "text": "[1] First reference."},
+          {"id": "r2", "kind": "biblio_entry", "is_bibliography": true, "text": "[2] Second reference."},
+          {"id": "r3", "kind": "biblio_entry", "is_bibliography": true, "text": "[3] Third reference."}
+        ],
+        "citations": [
+          {"index": 1, "key": "1", "raw": "[1] First reference.", "block_id": "r1"},
+          {"index": 2, "key": "2", "raw": "[2] Second reference.", "block_id": "r2"},
+          {"index": 3, "key": "3", "raw": "[3] Third reference.", "block_id": "r3"}
+        ],
+        "citation_marks": [
+          {"raw": "[2]", "key": "2", "block_id": "p1", "char_range": [35, 38]},
+          {"raw": "[1]", "key": "1", "block_id": "p2", "char_range": [30, 33]},
+          {"raw": "[3]", "key": "3", "block_id": "p3", "char_range": [34, 37]}
+        ]
+      },
+      "expected": [{"issue_type": "citation_numbering", "severity": "minor", "block_ids": ["r1"]}]
+    },
+    {
+      "id": "crossref-empty-caption",
+      "detectors": ["crossref"],
+      "document": {
+        "blocks": [
+          {"id": "p1", "kind": "paragraph", "text": "The result is shown in Figure 1."},
+          {"id": "p2", "kind": "paragraph", "text": "Figure 1"}
+        ]
+      },
+      "expected": [{"issue_type": "crossref_broken", "severity": "major", "block_ids": ["p1"]}]
+    },
+    {
+      "id": "crossref-caption-valid",
+      "detectors": ["crossref"],
+      "document": {
+        "blocks": [
+          {"id": "p1", "kind": "paragraph", "text": "The result is shown in Figure 1."},
+          {"id": "p2", "kind": "paragraph", "text": "Figure 1. Study flow diagram."}
+        ]
+      },
+      "expected": [],
+      "expected_absent": ["crossref_broken"]
+    },
+    {
+      "id": "crossref-valid-caption-multilingual-evidence",
+      "detectors": ["crossref"],
+      "document": {
+        "blocks": [
+          {"id": "p1", "kind": "paragraph", "text": "See Figure 2 for the workflow."},
+          {"id": "p2", "kind": "paragraph", "text": "Figure 2. Workflow overview."}
+        ]
+      },
+      "expected": [],
+      "expected_absent": ["crossref_broken"]
+    },
+    {
+      "id": "numeric-same-context-conflict",
+      "detectors": ["numbers"],
+      "document": {
+        "blocks": [
+          {"id": "p1", "kind": "paragraph", "text": "The accuracy was 82% in the treatment group."},
+          {"id": "p2", "kind": "paragraph", "text": "The accuracy was 75% in the treatment group."}
+        ]
+      },
+      "expected": [{"issue_type": "numeric_inconsistency", "severity": "major", "block_ids": ["p1", "p2"]}]
+    },
+    {
+      "id": "numeric-single-value-no-alert",
+      "detectors": ["numbers"],
+      "document": {
+        "blocks": [
+          {"id": "p1", "kind": "paragraph", "text": "The accuracy was 82% in the treatment group."},
+          {"id": "p2", "kind": "paragraph", "text": "The recall was 75% in the treatment group."}
+        ]
+      },
+      "expected": [],
+      "expected_absent": ["numeric_inconsistency"]
+    },
+    {
+      "id": "numeric-independent-metrics-no-alert",
+      "detectors": ["numbers"],
+      "document": {
+        "blocks": [
+          {"id": "p1", "kind": "paragraph", "text": "Accuracy was 82% in the treatment group."},
+          {"id": "p2", "kind": "paragraph", "text": "Coverage was 75% in the control group."}
+        ]
+      },
+      "expected": [],
+      "expected_absent": ["numeric_inconsistency"]
+    },
+    {
+      "id": "terminology-undefined-acronym",
+      "detectors": ["terminology"],
+      "document": {
+        "blocks": [
+          {"id": "p1", "kind": "paragraph", "text": "The WUE improved after intervention."}
+        ]
+      },
+      "expected": [{"issue_type": "terminology_undefined", "severity": "minor", "block_ids": ["p1"]}]
+    },
+    {
+      "id": "terminology-defined-later",
+      "detectors": ["terminology"],
+      "document": {
+        "blocks": [
+          {"id": "p1", "kind": "paragraph", "text": "The WUE improved after intervention."},
+          {"id": "p2", "kind": "paragraph", "text": "Water use efficiency (WUE) was measured."}
+        ]
+      },
+      "expected": [],
+      "expected_absent": ["terminology_undefined"]
+    },
+    {
+      "id": "structure-numbering-gap",
+      "detectors": ["structure"],
+      "document": {
+        "blocks": [
+          {"id": "h1", "kind": "heading", "heading_level": 1, "text": "1 Introduction"},
+          {"id": "h2", "kind": "heading", "heading_level": 1, "text": "3 Related Work"},
+          {"id": "h3", "kind": "heading", "heading_level": 1, "text": "4 Methods"},
+          {"id": "h4", "kind": "heading", "heading_level": 1, "text": "5 References"}
+        ]
+      },
+      "expected": [{"issue_type": "structure_issue", "severity": "minor", "block_ids": ["h1", "h2", "h3", "h4"]}]
+    },
+    {
+      "id": "structure-numbering-contiguous",
+      "detectors": ["structure"],
+      "document": {
+        "blocks": [
+          {"id": "h1", "kind": "heading", "heading_level": 1, "text": "1 Introduction"},
+          {"id": "h2", "kind": "heading", "heading_level": 1, "text": "2 Related Work"},
+          {"id": "h3", "kind": "heading", "heading_level": 1, "text": "3 Methods"},
+          {"id": "h4", "kind": "heading", "heading_level": 1, "text": "4 References"}
+        ]
+      },
+      "expected": [],
+      "expected_absent": ["structure_issue"]
+    }
+  ]
+}

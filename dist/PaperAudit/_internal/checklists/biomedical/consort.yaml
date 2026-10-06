@@ -1,0 +1,40 @@
+version: 2025-advisory
+name: CONSORT 随机对照试验提交前自审（精简包）
+scope_hint: 这是基于 CONSORT 主题的定位清单，不替代官方完整 checklist。
+groups:
+  - id: consort_design
+    name: 试验设计与分配
+    items:
+      - id: CONSORT01
+        q: 是否说明试验设计、分配比例、参与者标准和预先注册信息
+        sev: major
+        scope: paper
+        judge: 检查设计类型、分配比例、资格标准、注册号和方案可得性
+      - id: CONSORT02
+        q: 随机序列生成、分配隐藏和盲法是否可复核
+        sev: major
+        scope: paper
+        judge: 检查随机化方法、隐藏机制、实施者和盲法对象是否明确
+      - id: CONSORT03
+        q: 干预措施是否足够具体以便重复
+        sev: major
+        scope: paper
+        judge: 检查各组干预、剂量、时长、共同照护和偏离方案
+  - id: consort_results
+    name: 参与者流程与结果
+    items:
+      - id: CONSORT04
+        q: 是否报告各组招募、分配、随访、退出和分析人数
+        sev: major
+        scope: paper
+        judge: 对照流程图和分析集核对每个阶段人数及排除理由
+      - id: CONSORT05
+        q: 主要和次要结局是否给出组间效应及不确定性
+        sev: major
+        scope: paper
+        judge: 检查预先指定结局、效应量、区间、缺失值和分析人群
+      - id: CONSORT06
+        q: 是否报告不良事件、方案偏离和研究局限
+        sev: minor
+        scope: paper
+        judge: 检查安全性、偏离、提前停止及外部有效性限制

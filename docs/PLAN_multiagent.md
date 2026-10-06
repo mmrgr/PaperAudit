@@ -12,7 +12,7 @@
 - `nature-response`：已有审稿意见时才启用的逐条回复流程。
 - DelphiOpt：独立首轮、证据闭环、代码聚合和可审计轨迹。
 
-## 当前实现（M2 最小闭环）
+## 当前实现（M7 可交付闭环）
 
 ```text
 prepare / ingest
@@ -42,14 +42,16 @@ verify：统一 quote/block 门禁 + 精确去重 + 角色覆盖报告
 8. `trace.jsonl` 记录 `prepare_complete`、角色输入加载和 `verify_complete`，`review.md` 展示实际角色覆盖；缺失角色保持 `pending`。
 9. `paperaudit panel` 提供本地控制面板：状态图、角色任务、证据意见、作者决策、源 hash 门禁、副本修改和回归轨迹。
 10. 流程编辑器允许新增/停用角色、修改 skills/清单组/并行组/提示词，并校验任务依赖环；自定义流程只作用于新运行。
+11. `run-review` 提供显式 provider 的结构化角色执行、并行依赖调度、输出 hash、plan/profile checkpoint 和 `--fresh` 重跑。
+12. 原生 PDF/GROBID TEI、引用完整性、本地证据、隐私审计、数字事实图、清单 registry、Finding Graph、benchmark runner、provider-backed 双位置 panel runner 和确定性聚合已接入。
+13. `benchmarks/adversarial.json` 提供 12 个确定性正负样本，CI 固定 precision/recall/FPR 和 evidence gate 拒绝数。
 
 ## 尚未接入的阶段
 
-- 真正的 provider/runtime 调度：本项目仍由宿主运行角色，不在 PaperAudit 内调用模型。
-- 双向位置交换与四态 panel 裁决：当前保留 `Verdict` schema，裁决文件接口已预留但未自动生成。
-- 独立 `EditProposal` 与 C 级改写阻断：当前 `suggested_fix` 仍兼容旧 CLI，后续拆分。
-- PDF 原生 DocumentIR：当前 PDF 只支持文本投影 smoke test，不能替代页/图表源锚点。
-- 控制面板暂不直接调模型；它通过文件和 API 连接宿主 Agent 的角色输出，避免把模型权限和论文修改权限混在一起。
+- 双向位置交换与四态 panel 裁决：`run-panel` 已把配置的 provider 按模型×位置并行执行，写入逐任务响应、checkpoint 和 `panel.judgments.json`；`adjudicate` 继续负责确定性聚合和 `adjudication.json` 审计产物，完整 UI 任务流仍需独立评估。
+- 独立 `EditProposal` 与 C 级改写阻断：`plan-revision`/`/api/revision/plan` 已生成目标 span、`expected_old_text`、replacement、风险级别、冲突图和 `revision.diff`；`suggested_fix` 仍作为旧输入兼容层，后续可继续扩展 proposal editor。
+- 真实模型/真实期刊 gold corpus：CI 使用离线 fake provider 和 de-identified embedded IR；真实 provider 成本、跨期刊泛化和视觉/OCR 仍需独立评估。
+- 控制面板仍以宿主协作和 pending 状态为主；直接模型按钮已接入 `run-review`，模型 Panel 按钮已接入 `/api/panel/start`，真实 provider 的交互式成本/失败提示仍需独立评估。
 
 ## 开源交互参考
 

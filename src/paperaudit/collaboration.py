@@ -11,6 +11,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 from datetime import datetime, timezone
+import threading
+
+
+_TRACE_LOCK = threading.Lock()
 
 
 SKILLS = {
@@ -415,5 +419,6 @@ def append_trace(out_dir: str | Path, event: str, **payload: Any) -> None:
         **payload,
     }
     path = Path(out_dir) / "trace.jsonl"
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+    with _TRACE_LOCK:
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")

@@ -13,7 +13,15 @@ $Work = Join-Path $Project 'build\pyinstaller'
 
 if (-not (Test-Path $PyInstaller)) {
     & $Python -m pip install pyinstaller
+    if ($LASTEXITCODE -ne 0) { throw "PyInstaller installation failed with exit code $LASTEXITCODE" }
 }
+
+# The bundled WorkBuddy Python is intentionally separate from the interpreter
+# used for development.  Install the runtime dependencies into that exact
+# interpreter before freezing; otherwise PyInstaller can produce an EXE that
+# builds successfully but fails immediately with ``No module named docx``.
+& $Python -m pip install -e "$Project[pdf]"
+if ($LASTEXITCODE -ne 0) { throw "PaperAudit dependency installation failed with exit code $LASTEXITCODE" }
 
 Copy-Item (Join-Path $Project 'ui\control-panel.html') (Join-Path $Project 'src\paperaudit\static\control-panel.html') -Force
 Remove-Item (Join-Path $Project 'build\pyinstaller') -Recurse -Force -ErrorAction SilentlyContinue
@@ -22,8 +30,10 @@ Remove-Item (Join-Path $Dist 'PaperAudit') -Recurse -Force -ErrorAction Silently
 $args = @(
     '--noconfirm', '--clean', '--name', 'PaperAudit', '--paths', (Join-Path $Project 'src'),
     '--add-data', "$(Join-Path $Project 'checklists');checklists",
+    '--add-data', "$(Join-Path $Project 'venues');venues",
     '--add-data', "$(Join-Path $Project 'src\paperaudit\static');paperaudit/static",
-    '--collect-submodules', 'paperaudit', '--hidden-import', 'yaml',
+    '--collect-submodules', 'paperaudit',
+    '--collect-all', 'docx', '--collect-all', 'lxml', '--collect-all', 'yaml', '--collect-all', 'pdfplumber',
     '--distpath', $Dist, '--workpath', $Work, '--specpath', $Work
 )
 if ($Mode -eq 'onefile') { $args += '--onefile' } else { $args += '--onedir' }

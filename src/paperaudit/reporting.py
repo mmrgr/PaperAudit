@@ -57,16 +57,20 @@ def gate_finding(doc: DocumentIR, finding: Finding, *, allow_empty: bool = True)
         hay = doc.full_text()
     hay_n = norm(hay)
 
-    # 清单型 quote（"A、B、C"）逐项判定：允许部分误报项，
-    # 但只要能定位到其中任一项，该 finding 就算可追溯。
+    # 清单型 quote（"A、B、C"）必须逐项命中。只命中其中一项不能让
+    # 包含多个断言的 finding 整体通过证据门禁。
     parts = [p for p in _SPLIT_QUOTE.split(finding.verbatim_quote) if p.strip()]
     if len(parts) > 1:
         hits = sum(1 for p in parts if norm(p) in hay_n)
-        if hits:
+        if hits == len(parts):
             finding.gate_passed = True
-            finding.gate_reason = f"partial-match {hits}/{len(parts)}"
-            finding.confidence = round(finding.confidence * (hits / len(parts)), 2)
+            finding.gate_reason = f"all-parts-match {hits}/{len(parts)}"
             return finding
+        finding.gate_passed = False
+        finding.gate_reason = f"partial-match {hits}/{len(parts)}"
+        finding.verdict = Verdict.UNVERIFIABLE
+        finding.confidence = min(finding.confidence, 0.3)
+        return finding
     elif norm(finding.verbatim_quote) in hay_n:
         finding.gate_passed = True
         finding.gate_reason = "exact-match"
@@ -98,8 +102,19 @@ def coverage(doc: DocumentIR, findings: list[Finding]) -> dict:
         "crossref": "图表交叉引用",
         "terminology": "术语与缩写",
         "numbers": "数字一致性",
+        "privacy": "匿名与隐私",
     }
-    ran = set(checks)
+    recorded = doc.metadata.get("detectors_run") if isinstance(doc.metadata, dict) else None
+    if isinstance(recorded, list):
+        ran = set(str(name) for name in recorded) & set(checks)
+    else:
+        # Backward-compatible fallback for callers that construct findings
+        # manually instead of running evidence.run_all first.
+        ran = set()
+        for finding in findings:
+            key = (finding.checklist_id or "").split("/")[-1]
+            if key in checks:
+                ran.add(key)
 
     def _check_of(finding: Finding) -> str:
         cid = finding.checklist_id or ""
@@ -132,10 +147,15 @@ def to_markdown(doc: DocumentIR, findings: list[Finding]) -> str:
         f"**段落/表格块数**：{len(doc.blocks)}  ",
         f"**检出问题**：{len(confirmed)} 项（另有 {len(unver)} 项未通过证据门禁）",
         "",
-        "> 本报告全部由确定性检查生成，未调用任何语言模型。",
+        f"> {_provenance_line(doc, findings)}",
         "> 标注「需你确认」的条目为启发式判断，可能存在误报。",
         "",
     ]
+    warnings = list((doc.metadata or {}).get("warnings", []) or [])
+    if (doc.metadata or {}).get("scan_likely") and "pdf_text_unavailable_scan_likely" not in warnings:
+        warnings.append("pdf_text_unavailable_scan_likely")
+    if warnings:
+        lines += ["## 解析警告", "", "- " + "；".join(str(item) for item in warnings), ""]
 
     if not confirmed:
         lines.append("未发现问题。")
@@ -146,7 +166,14 @@ def to_markdown(doc: DocumentIR, findings: list[Finding]) -> str:
                 continue
             lines += [f"## {_SEV_CN[sev]}（{len(group)}）", ""]
             for f in group:
-                loc = "、".join(f.block_ids[:5]) if f.block_ids else "—"
+                locations: list[str] = []
+                for block_id in f.block_ids[:5]:
+                    block = doc.block_by_id(block_id)
+                    if block is not None and block.page is not None:
+                        locations.append(f"{block_id} · p.{block.page}")
+                    else:
+                        locations.append(block_id)
+                loc = "、".join(locations) if locations else "—"
                 flag = " ⚠ 需你确认" if f.needs_author_decision else ""
                 lines += [
                     f"### {f.id} · {f.issue_type.value}{flag}",
@@ -158,6 +185,11 @@ def to_markdown(doc: DocumentIR, findings: list[Finding]) -> str:
                     lines.append(f"- **涉及内容**：{f.verbatim_quote[:200]}")
                 if f.evidence_refs:
                     lines.append(f"- **证据**：{', '.join(str(x) for x in f.evidence_refs[:15])}")
+                if f.support > 1 or f.reviewer_ids:
+                    reviewers = ", ".join(f.reviewer_ids) or "deterministic"
+                    lines.append(f"- **独立支持**：{f.support}；来源：{reviewers}")
+                if f.related:
+                    lines.append(f"- **关联意见**：{', '.join(f.related[:12])}")
                 lines.append(f"- **检测方式**：{f.source} · 置信度 {f.confidence:.2f}")
                 lines.append("")
 
@@ -171,6 +203,28 @@ def to_markdown(doc: DocumentIR, findings: list[Finding]) -> str:
     return "\n".join(lines)
 
 
+def _provenance_line(doc: DocumentIR, findings: list[Finding]) -> str:
+    """Describe the actual finding sources without making a false claim.
+
+    ``verify`` merges deterministic and host-LLM findings before rendering the
+    report.  The old fixed sentence therefore became incorrect as soon as a
+    semantic reviewer contributed a finding.
+    """
+    sources = {str(f.source or "").strip().lower() for f in findings}
+    sources.discard("")
+    deterministic = "deterministic" in sources or bool(
+        isinstance(doc.metadata, dict) and doc.metadata.get("detectors_run")
+    )
+    llm = bool(sources & {"llm", "language_model", "host_agent"})
+    if deterministic and llm:
+        return "本报告包含确定性检查与语言模型审查结果；所有条目均经过证据门禁。"
+    if llm:
+        return "本报告包含语言模型审查结果；所有条目均经过证据门禁。"
+    if deterministic:
+        return "本报告由确定性检查生成，未调用语言模型。"
+    return "本报告未标注审查来源；条目仍须以证据门禁结果为准。"
+
+
 def to_json(doc: DocumentIR, findings: list[Finding]) -> str:
     _assign_ids(findings)
     return json.dumps(
@@ -178,10 +232,20 @@ def to_json(doc: DocumentIR, findings: list[Finding]) -> str:
             "document": {
                 "path": doc.source_path,
                 "hash": doc.source_hash,
+                "format": (doc.metadata or {}).get("format", "docx"),
                 "blocks": len(doc.blocks),
                 "citations": len(doc.citations),
                 "citation_marks": len(doc.citation_marks),
                 "figures": len(doc.figures),
+                "block_anchors": {
+                    block.id: {
+                        "page": block.page,
+                        "bbox": list(block.bbox) if block.bbox is not None else None,
+                    }
+                    for block in doc.blocks
+                    if block.page is not None or block.bbox is not None
+                },
+                "metadata": doc.metadata or {},
             },
             "coverage": coverage(doc, findings),
             "findings": [f.to_dict() for f in findings],

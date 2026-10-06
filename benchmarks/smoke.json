@@ -1,0 +1,74 @@
+{
+  "version": "benchmark-v1",
+  "name": "PaperAudit deterministic smoke corpus",
+  "cases": [
+    {
+      "id": "structure-required-sections",
+      "detectors": ["structure"],
+      "document": {
+        "doc_id": "structure-required-sections",
+        "blocks": [
+          {"id": "h1", "kind": "heading", "heading_level": 1, "text": "1 引言"},
+          {"id": "p1", "kind": "paragraph", "text": "研究背景与问题定义。"},
+          {"id": "h2", "kind": "heading", "heading_level": 1, "text": "2 研究方法"},
+          {"id": "h3", "kind": "heading", "heading_level": 1, "text": "3 参考文献"}
+        ]
+      },
+      "expected": [
+        {"issue_type": "structure_issue", "severity": "major"}
+      ],
+      "expected_absent": ["privacy_risk", "numeric_inconsistency"]
+    },
+    {
+      "id": "citation-missing-and-unused",
+      "detectors": ["citations"],
+      "document": {
+        "doc_id": "citation-missing-and-unused",
+        "blocks": [
+          {"id": "p1", "kind": "paragraph", "text": "已有研究支持该方法[2]。"},
+          {"id": "r1", "kind": "biblio_entry", "is_bibliography": true, "text": "[1] Example reference.", "heading_level": 0}
+        ],
+        "citations": [
+          {"index": 1, "key": "1", "raw": "[1] Example reference.", "block_id": "r1"}
+        ],
+        "citation_marks": [
+          {"raw": "[2]", "key": "2", "block_id": "p1", "char_range": [13, 16]}
+        ]
+      },
+      "expected": [
+        {"issue_type": "citation_unused", "block_ids": ["r1"]},
+        {"issue_type": "citation_missing", "block_ids": ["p1"]}
+      ],
+      "expected_absent": ["privacy_risk", "numeric_inconsistency"]
+    },
+    {
+      "id": "crossref-broken",
+      "detectors": ["crossref"],
+      "document": {
+        "doc_id": "crossref-broken",
+        "blocks": [
+          {"id": "p1", "kind": "paragraph", "text": "结果见图2。"}
+        ]
+      },
+      "expected": [
+        {"issue_type": "crossref_broken", "block_ids": ["p1"]}
+      ],
+      "expected_absent": ["privacy_risk", "numeric_inconsistency"]
+    },
+    {
+      "id": "numeric-inconsistency",
+      "detectors": ["numbers"],
+      "document": {
+        "doc_id": "numeric-inconsistency",
+        "blocks": [
+          {"id": "p1", "kind": "paragraph", "text": "The accuracy was 82% in the treatment group."},
+          {"id": "p2", "kind": "paragraph", "text": "The accuracy was 75% in the treatment group."}
+        ]
+      },
+      "expected": [
+        {"issue_type": "numeric_inconsistency", "severity": "major", "block_ids": ["p1", "p2"]}
+      ],
+      "expected_absent": ["privacy_risk", "crossref_broken"]
+    }
+  ]
+}

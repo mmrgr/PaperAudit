@@ -93,7 +93,7 @@ GPT 给了 8 层架构、约 50 个文件、10 个 agent、26 节方案。其中
 | GPT 提议 | V1 处置 | 理由 |
 |---|---|---|
 | 通用 DAG runtime（`invalidated()` / retry policy / resource 多维信号量） | **简化为分层 fan-out + barrier** | V1 的任务图深度只有 4～5 层，且没有重试/失效传播的复杂需求 |
-| 外部文献检索（Crossref/S2/OpenAlex） | **V1 默认关闭，仅留接口** | 成本高、耗时，且未发表稿件用不上；closed-book 检查已能覆盖大部分引用问题 |
+| 外部文献检索（Crossref/S2/OpenAlex） | **默认关闭，显式命令可选开启** | `citation-integrity --online` 通过 Crossref/Semantic Scholar 做元数据与出版状态核验；离线模式不声称已验证 |
 | Docker sandbox | **V1 移除** | 无编译环节 |
 | Best-of-N（medium:2, substantive:2） | **默认 N=1**，可配 | 直接冲突"尽量少用 token" |
 | 10 个 reviewer | **收敛到 5 个 + skeptic** | 见 §3 |
@@ -127,7 +127,8 @@ Delphi 独立首轮 + 匿名聚合、skeptic 角色、确定性验证优先于 L
                     ↓
         [用户勾选 F003, F007, F011]
                     ↓
-阶段 2  revise      RUN_ID + 选中项 → 副本上生成修订 → revised.docx + 预览 diff
+阶段 2  revise      RUN_ID + 选中项 → plan-revision/EditProposal + 冲突预览
+                    → 用户确认 → 副本上生成修订 → revised.docx + 回归报告
 ```
 
 **原文件不变的三重保证：**
@@ -145,11 +146,13 @@ PaperAudit/
 │  ├─ models.py             # 五组核心 schema（见 §4）
 │  ├─ ingest/
 │  │  ├─ docx_reader.py     # 段落/表格有序遍历、run 拼接、字符区间↔run 映射
+│  │  ├─ pdf_reader.py      # 可选 pdfplumber；页码/bounding box 原生锚点
+│  │  ├─ grobid_reader.py   # 可选 GROBID 服务或保存的 TEI；章节/引用/表格/coords
 │  │  ├─ ir.py              # DocumentIR 构建
 │  │  └─ source_map.py      # 稳定块 ID 与定位
 │  ├─ evidence/             # 确定性检查（零 LLM）
 │  │  ├─ citations.py       #   正文引用 vs 参考文献表；编号连续性
-│  │  ├─ numbers.py         #   数字实体抽取；摘要/正文/结论/表格交叉核对
+│  │  ├─ numbers.py         #   数字事实图入口；摘要/正文/结论/表格交叉核对
 │  │  ├─ crossref.py        #   图/表/章节编号引用是否成立
 │  │  ├─ terminology.py     #   缩写定义、术语一致性
 │  │  └─ structure.py       #   章节编号、必填章节（自审清单）
@@ -186,7 +189,7 @@ PaperAudit/
 └─ tests/
 ```
 
-**V1 明确不做**：budget 模块、Docker、外部文献检索（留接口）、GUI、MCP server、reputation 驱动路由。
+**V1 明确不做**：budget 模块、Docker、联网自动全文 claim-support 检索、远程 SaaS GUI、MCP server、reputation 驱动路由。本地控制面板已接入；外部文献元数据核验、作者提供的证据段落、带标识的本地文本/TEI 目录检索和显式模型 profile 角色执行已作为 opt-in 能力实现。
 
 ---
 
@@ -209,7 +212,8 @@ Finding:      id, issue_type, severity(major|minor|nit),
 # 3. EditProposal —— 与 Finding 分离，只在阶段 2 产生
 EditProposal: id, finding_ids[], target_blocks[], edit_type,
               level(A_safe|B_meaning_preserving|C_substantive),
-              new_text, rationale, risk_flags[]
+              expected_old_text, new_text, rationale, risk_flags[],
+              operations[{block_id, start, end, replacement}]
 
 # 4. VerificationResult —— 判定，不由 LLM 单点决定
 VerificationResult: proposal_id, gate_results{citation, numeric,
@@ -387,6 +391,10 @@ M4  裁决 panel + 四态分层输出
 M5  revise + 备份 + 段落级 diff + 回归复验
 M6  Skill 封装（Codex/WorkBuddy）+ seeded fixture + 与 direct LLM 的对比实验
 ```
+
+当前实现已在 M5 基础上补充 GROBID/TEI 输入、清单注册表、配置驱动的投稿模式、引用完整性、隐私审计、
+Finding Graph、直接模型 runner/checkpoint、provider-backed 双位置 panel runner、四态 adjudication 和 `benchmark` 回归 runner；真实语料的跨章节数字对齐、OCR 与模型基准仍需单独
+收集去标识样本后评估，不能用内置 smoke corpus 代替。
 
 M1 同时会把 §五 里那些 token 节省的**估算值测成实测值**（轨迹记录每次调用的 prompt/response token），因为那些数字目前只是基于文档结构特征的推断，不是实测。
 

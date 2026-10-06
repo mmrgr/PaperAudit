@@ -72,7 +72,7 @@ def _undefined_acronyms(doc: DocumentIR) -> list[Finding]:
             issue_type=IssueType.TERMINOLOGY_UNDEFINED,
             severity=Severity.MINOR,
             confidence=0.6,
-            block_ids=[seen[a] for a in undefined],
+            block_ids=list(dict.fromkeys(seen[a] for a in undefined)),
             verbatim_quote="、".join(undefined),
             rationale=f"以下缩写首次出现时未见中文全称或英文展开：{'、'.join(undefined)}。"
             "（确定性启发式判断，可能存在误报，需你确认。）",

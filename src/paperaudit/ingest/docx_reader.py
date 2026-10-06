@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import hashlib
 import re
+import zipfile
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
 import docx
 from docx.table import Table
@@ -32,12 +34,37 @@ _NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
 # 标题层级：兼容 "Heading 1" 与中文 "标题 1"
 _HEADING_RE = re.compile(r"(?:Heading|标题)\s*(\d+)", re.I)
+_NUMBERED_HEADING_RE = re.compile(r"^\s*\d+(?:[.\-]\d+)*[.)]?\s+\S")
+_NAMED_HEADING_RE = re.compile(
+    r"^\s*(?:摘要|引言|绪论|背景|方法|结果|讨论|结论|局限性|致谢|参考文献|附录|"
+    r"abstract|introduction|background|method(?:s)?|results?|discussion|conclusion|"
+    r"limitations?|acknowledg(?:e)?ments?|references|bibliography)\s*[:：]?\s*$",
+    re.I,
+)
 
 # 正文引用标记：[1] / [2,3] / [1-3] / [1—3] / [1–3]
 _CITE_MARK_RE = re.compile(r"\[(\d[\d\s,;–—\-]*)\]")
 
+# Author-year citations: (Smith, 2024), (Smith et al., 2024), 张三（2024）,
+# and narrative citations such as Smith et al. (2024).  The parser stores a
+# conservative first-author/year key; exact metadata verification belongs to a
+# later evidence layer.
+_AUTHOR_YEAR_PAREN_RE = re.compile(
+    r"[\(（]\s*([^()（）,，;；]{1,100}?)\s*[,，;；]\s*((?:19|20)\d{2}[a-z]?)\s*[\)）]",
+    re.I,
+)
+_AUTHOR_YEAR_NARRATIVE_RE = re.compile(
+    r"\b([A-Z][A-Za-z'\-]+(?:\s+et\s+al\.)?)\s*[\(（]\s*((?:19|20)\d{2}[a-z]?)\s*[\)）]",
+    re.I,
+)
+_AUTHOR_YEAR_CJK_RE = re.compile(
+    r"([\u4e00-\u9fff]{2,8})\s*[\(（]\s*((?:19|20)\d{2}[a-z]?)\s*[\)）]",
+    re.I,
+)
+
 # 参考文献条目：[1] xxx
 _BIB_ENTRY_RE = re.compile(r"^\s*\[(\d+)\]\s*(.+)$")
+_BIB_AUTHOR_YEAR_RE = re.compile(r"^\s*(.+?)\s*[\(（]((?:19|20)\d{2}[a-z]?)\s*[\)）]", re.I)
 
 # 题注：图3-1 / 表3-1 / Figure 1 / Table 1
 _CAPTION_RE = re.compile(r"^\s*(图|表|Figure|Table|Fig\.?)\s*(\d+(?:[-.]\d+)*)\s*[.、:：]?\s*(.*)$", re.I)
@@ -78,10 +105,29 @@ def read_docx(path: str | Path) -> DocumentIR:
             style = para.style.name if para.style is not None else ""
 
             m = _HEADING_RE.search(style)
-            is_heading = bool(m) and bool(text.strip())
+            outline_level = _outline_level(para)
+            style_heading_level = _style_heading_level(para)
+            # Many university templates visually format "参考文献" as a
+            # centered/bold paragraph without assigning a Heading style.  A
+            # conservative text fallback keeps the bibliography boundary
+            # usable without guessing arbitrary body headings.
+            fallback_bib_heading = not m and bool(_BIB_HEADING.match(text.strip()))
+            is_heading = (
+                bool(m)
+                or outline_level is not None
+                or style_heading_level is not None
+                or fallback_bib_heading
+                or _fallback_heading(text)
+            ) and bool(text.strip())
+            heading_level = (
+                int(m.group(1)) if m else
+                outline_level if outline_level is not None else
+                style_heading_level if style_heading_level is not None else
+                1 if (fallback_bib_heading or _fallback_heading(text)) else 0
+            )
 
             if is_heading:
-                level = int(m.group(1))
+                level = heading_level
                 if _BIB_HEADING.match(text.strip()):
                     in_biblio = True
                 elif level <= 3:
@@ -99,7 +145,7 @@ def read_docx(path: str | Path) -> DocumentIR:
                     text=text,
                     section_path=list(section_stack),
                     style_name=style,
-                    heading_level=int(m.group(1)) if is_heading else 0,
+                    heading_level=heading_level if is_heading else 0,
                     is_bibliography=in_biblio and not is_heading,
                 )
             )
@@ -127,11 +173,121 @@ def read_docx(path: str | Path) -> DocumentIR:
         source_path=str(path),
         source_hash=source_hash,
         blocks=blocks,
+        metadata={"format": "docx"},
     )
+    _extract_notes(doc, path)
     _extract_citations(doc)
     _extract_figures(doc)
     _extract_numerics(doc)
     return doc
+
+
+def _extract_notes(doc: DocumentIR, path: Path) -> None:
+    """Append footnote/endnote paragraphs that python-docx omits.
+
+    Notes are kept as ordinary paragraph blocks with dedicated IDs so citation,
+    numeric and cross-reference detectors can inspect them without pretending
+    they occur in the body order.  Malformed or hostile note XML is ignored
+    conservatively and recorded as a parser warning.
+    """
+
+    counts: dict[str, int] = {}
+    try:
+        with zipfile.ZipFile(path) as package:
+            for kind, member in (("footnote", "word/footnotes.xml"), ("endnote", "word/endnotes.xml")):
+                try:
+                    raw = package.read(member)
+                except KeyError:
+                    continue
+                if len(raw) > 10 * 1024 * 1024 or b"<!DOCTYPE" in raw.upper() or b"<!ENTITY" in raw.upper():
+                    doc.metadata.setdefault("warnings", []).append(f"{kind}_xml_rejected")
+                    continue
+                try:
+                    root = ET.fromstring(raw)
+                except ET.ParseError:
+                    doc.metadata.setdefault("warnings", []).append(f"{kind}_xml_invalid")
+                    continue
+                number = 0
+                for note in root:
+                    if note.tag.rsplit("}", 1)[-1] != kind:
+                        continue
+                    note_id = note.attrib.get(f"{_NS}id", "")
+                    try:
+                        if int(note_id) < 0:
+                            continue
+                    except (TypeError, ValueError):
+                        pass
+                    for paragraph in note:
+                        if paragraph.tag.rsplit("}", 1)[-1] != "p":
+                            continue
+                        text = " ".join(part.strip() for part in paragraph.itertext() if part and part.strip())
+                        if not text:
+                            continue
+                        number += 1
+                        doc.blocks.append(
+                            Block(
+                                id=f"{kind[:2]}_{number:04d}",
+                                kind=BlockKind.PARAGRAPH,
+                                text=text,
+                                style_name=f"{kind.title()} paragraph",
+                            )
+                        )
+                counts[kind] = number
+    except (OSError, zipfile.BadZipFile):
+        doc.metadata.setdefault("warnings", []).append("notes_xml_unavailable")
+    if counts:
+        doc.metadata["notes"] = counts
+
+
+def _outline_level(para: Paragraph) -> int | None:
+    """Read Word's semantic outline level even when a custom style is used."""
+
+    ppr = getattr(para._p, "pPr", None)
+    if ppr is None:
+        return None
+    node = ppr.find(f"{_NS}outlineLvl")
+    if node is None:
+        return None
+    try:
+        return max(1, int(node.get(f"{_NS}val", "0")) + 1)
+    except (TypeError, ValueError):
+        return None
+
+
+def _style_heading_level(para: Paragraph) -> int | None:
+    """Follow custom style inheritance to a built-in Heading style."""
+
+    seen: set[int] = set()
+    style = para.style
+    while style is not None and id(style) not in seen:
+        seen.add(id(style))
+        match = _HEADING_RE.search(str(getattr(style, "name", "")))
+        if match:
+            try:
+                return max(1, int(match.group(1)))
+            except ValueError:
+                return 1
+        style = getattr(style, "base_style", None)
+    return None
+
+
+def _fallback_heading(text: str) -> bool:
+    """Conservatively recognize hand-formatted headings.
+
+    This covers common Chinese university templates where headings are bold or
+    centered but have no Heading style or outline level.  Long prose and
+    sentence-like numbered text are deliberately excluded to protect recall
+    precision in the structure detector.
+    """
+
+    clean = str(text or "").strip()
+    if not clean or len(clean) > 180:
+        return False
+    if _NAMED_HEADING_RE.match(clean):
+        return True
+    if not _NUMBERED_HEADING_RE.match(clean):
+        return False
+    return not clean.endswith(("。", "！", "？", ".", "!", "?", ";", "；"))
 
 
 def _extract_citations(doc: DocumentIR) -> None:
@@ -151,6 +307,18 @@ def _extract_citations(doc: DocumentIR) -> None:
                         block_id=b.id,
                     )
                 )
+            else:
+                m = _BIB_AUTHOR_YEAR_RE.match(b.text.strip())
+                if m:
+                    author, year = m.group(1), m.group(2)
+                    doc.citations.append(
+                        CitationEntry(
+                            index=None,
+                            key=_author_year_key(author, year),
+                            raw=b.text.strip(),
+                            block_id=b.id,
+                        )
+                    )
             continue
 
         # 正文：扫描引用标记
@@ -166,6 +334,32 @@ def _extract_citations(doc: DocumentIR) -> None:
                         char_range=(m.start(), m.end()),
                     )
                 )
+            for m in _AUTHOR_YEAR_PAREN_RE.finditer(b.text):
+                doc.citation_marks.append(
+                    CitationMark(
+                        raw=m.group(0),
+                        key=_author_year_key(m.group(1), m.group(2)),
+                        block_id=b.id,
+                        char_range=(m.start(), m.end()),
+                    )
+                )
+            for pattern in (_AUTHOR_YEAR_NARRATIVE_RE, _AUTHOR_YEAR_CJK_RE):
+                for m in pattern.finditer(b.text):
+                    doc.citation_marks.append(
+                        CitationMark(
+                            raw=m.group(0),
+                            key=_author_year_key(m.group(1), m.group(2)),
+                            block_id=b.id,
+                            char_range=(m.start(), m.end()),
+                        )
+                    )
+
+
+def _author_year_key(author: str, year: str) -> str:
+    """Normalize an author-year occurrence to a first-author/year key."""
+    author = re.split(r"\s+(?:and|&|等)\s+|[,，;；]", author, maxsplit=1, flags=re.I)[0]
+    author = re.sub(r"\bet\s+al\.?$", "", author, flags=re.I).strip(" .")
+    return f"{author.casefold()}|{year.casefold()}"
 
 
 def _is_year_like(key: str) -> bool:

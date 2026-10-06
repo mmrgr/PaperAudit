@@ -27,9 +27,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--no-open", action="store_true", help="只启动服务，不自动打开浏览器")
+    parser.add_argument("--allow-remote", action="store_true", help="允许绑定非本机地址；必须同时提供 --auth-token")
+    parser.add_argument("--auth-token", help="保护面板 API 的共享令牌；远程绑定时必填")
     args = parser.parse_args(argv)
     port = args.port or _free_port()
     panel_args = ["--run-root", args.run_root, "--host", args.host, "--port", str(port)]
+    if args.allow_remote:
+        panel_args.append("--allow-remote")
+    if args.auth_token:
+        panel_args.extend(["--auth-token", args.auth_token])
     if not args.no_open:
         panel_args.append("--open")
     return panel_main(panel_args)

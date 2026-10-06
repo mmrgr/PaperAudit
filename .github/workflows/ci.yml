@@ -1,0 +1,56 @@
+name: PaperAudit CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[pdf,test]"
+      - name: Compile package and tests
+        run: python -m compileall -q src tests
+      - name: Check bundled control panel is synchronized
+        run: diff -u ui/control-panel.html src/paperaudit/static/control-panel.html
+      - name: Run deterministic smoke suite
+        env:
+          PYTHONPATH: src
+        run: |
+          python tests/p0_correctness.py
+          python tests/revise_safety.py
+          python tests/privacy_smoke.py
+          python tests/numeric_fact_smoke.py
+          python tests/finding_graph_smoke.py
+          python tests/ir_snapshot_smoke.py
+          python tests/checklist_registry_smoke.py
+          python tests/venue_smoke.py
+          python tests/citation_integrity_smoke.py
+          python tests/local_evidence_smoke.py
+          python tests/adjudication_smoke.py
+          python tests/panel_runner_smoke.py
+          python tests/runner_smoke.py
+          python tests/jobs_persistence_smoke.py
+          python tests/grobid_reader_smoke.py
+          python tests/benchmark_smoke.py
+          python tests/benchmark_regression_smoke.py
+          python tests/llm_smoke.py
+          python tests/llm_config_smoke.py
+          python tests/author_year_smoke.py
+          python tests/notes_smoke.py
+          python tests/pdf_native_smoke.py
+          python tests/panel_smoke.py
+      - name: Build wheel
+        run: python -m pip wheel --no-deps --no-build-isolation . -w dist-ci

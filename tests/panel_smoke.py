@@ -15,6 +15,28 @@ import urllib.request
 from pathlib import Path
 
 
+def _ensure_fixture(path: Path) -> None:
+    """Create the tiny source document when ignored local fixtures are absent.
+
+    The smoke test is intentionally self-contained so a clean checkout does
+    not depend on a developer's ignored ``tests/_tmp`` files.
+    """
+
+    if path.exists():
+        return
+    from docx import Document
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    document = Document()
+    document.add_heading("研究背景", level=1)
+    document.add_paragraph("结果见图1。")
+    document.add_heading("研究方法", level=1)
+    document.add_paragraph("采用观察性研究方法。")
+    document.add_heading("参考文献", level=1)
+    document.add_paragraph("[1] Example reference.")
+    document.save(path)
+
+
 def request(url: str, method: str = "GET", payload: dict | None = None) -> dict:
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     req = urllib.request.Request(url, data=data, method=method, headers={"Content-Type": "application/json"})
@@ -29,7 +51,9 @@ def main() -> int:
     run_dir = run_root / "seeded-run"
     sample = run_root / "source.docx"
     sample.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(project / "tests" / "_tmp" / "seeded.docx", sample)
+    fixture = project / "tests" / "_tmp" / "seeded.docx"
+    _ensure_fixture(fixture)
+    shutil.copy2(fixture, sample)
     original_bytes = sample.read_bytes()
     env = os.environ.copy()
     env["PYTHONPATH"] = str(project / "src")
@@ -102,6 +126,32 @@ def main() -> int:
             "POST",
             {"source": str(sample), "out_dir": str(run_dir), "workflow": validated["workflow"]},
         )
+        try:
+            request(base + "/api/review/start", "POST", {"run_dir": str(run_dir), "profile_id": "host_agent"})
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 400
+        else:
+            raise AssertionError("host_agent was incorrectly accepted as direct model runner")
+        for invalid_panel in (
+            {"run_dir": str(run_dir), "profiles": ["openai"]},
+            {"run_dir": str(run_dir), "profiles": ["host_agent", "openai"]},
+        ):
+            try:
+                request(base + "/api/panel/start", "POST", invalid_panel)
+            except urllib.error.HTTPError as exc:
+                assert exc.code == 400
+            else:
+                raise AssertionError("invalid panel profile selection was accepted")
+        try:
+            request(
+                base + "/api/prepare",
+                "POST",
+                {"source": str(sample), "out_dir": str(run_dir / "invalid-parser"), "pdf_parser": "invalid"},
+            )
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 400
+        else:
+            raise AssertionError("invalid PDF parser was accepted")
         state = request(base + "/api/state?run_dir=" + urllib.parse.quote(str(run_dir)))
         assert health["status"] == "ok"
         assert prepared["source_hash"] == state["source_hash"]
@@ -128,6 +178,17 @@ def main() -> int:
         verified = request(base + "/api/verify", "POST", {"run_dir": str(run_dir)})
         state = verified["state"]
         candidate = next(item for item in state["findings"]["confirmed"] if item.get("reviewer_id") == reviewer["id"])
+        panel_judgments = {
+            "judgments": [
+                {"finding_id": candidate["id"], "judge_model": model, "position": position, "verdict": "yes"}
+                for model in ("panel-a", "panel-b")
+                for position in ("claim_first", "evidence_first")
+            ]
+        }
+        (run_dir / "panel.judgments.json").write_text(json.dumps(panel_judgments), encoding="utf-8")
+        adjudicated = request(base + "/api/adjudicate", "POST", {"run_dir": str(run_dir), "judgments": "panel.judgments.json"})
+        assert adjudicated["result"]["summary"]["confirmed"] == 1
+        assert next(item for item in adjudicated["state"]["findings"]["confirmed"] if item["id"] == candidate["id"])["panel_verdict"] == "confirmed"
         try:
             request(base + "/api/apply", "POST", {"run_dir": str(run_dir), "source": str(sample), "source_hash": state["source_hash"], "finding_ids": [candidate["id"]], "confirm": True})
         except urllib.error.HTTPError as exc:
@@ -135,6 +196,20 @@ def main() -> int:
         else:
             raise AssertionError("unaccepted finding was applied")
         request(base + "/api/decisions", "POST", {"run_dir": str(run_dir), "finding_id": candidate["id"], "decision": "accept", "source_hash": state["source_hash"]})
+        try:
+            request(base + "/api/apply/start", "POST", {"run_dir": str(run_dir), "source": str(sample), "source_hash": state["source_hash"], "finding_ids": [candidate["id"]], "confirm": True})
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 400
+        else:
+            raise AssertionError("panel apply bypassed the required revision plan preview")
+        planned = request(
+            base + "/api/revision/plan",
+            "POST",
+            {"run_dir": str(run_dir), "source": str(sample), "finding_ids": [candidate["id"]]},
+        )
+        assert planned["result"]["status"] == "ready"
+        assert Path(planned["result"]["revision_plan"]).exists()
+        assert planned["result"]["proposals"][0]["operations"]
         output = run_dir / "revised.docx"
         applied = request(base + "/api/apply", "POST", {"run_dir": str(run_dir), "source": str(sample), "source_hash": state["source_hash"], "finding_ids": [candidate["id"]], "out": str(output), "confirm": True})
         assert applied["result"]["status"] == "ok"

@@ -99,6 +99,8 @@ def build_state(run_dir: str | Path) -> dict:
     result = read_json(run / "findings.json", {})
     trace = read_trace(run)
     decisions = latest_decisions(run)
+    adjudication = read_json(run / "adjudication.json", {})
+    revision_plan = read_json(run / "revision.plan.json", {})
     roles = [_role_state(run, role) for role in plan.get("roles", [])] if isinstance(plan, dict) else []
     has_manifest = (run / "manifest.json").exists()
     has_verify = (run / "findings.json").exists()
@@ -106,8 +108,17 @@ def build_state(run_dir: str | Path) -> dict:
     confirmed = list(result.get("confirmed", [])) if isinstance(result, dict) else []
     rejected = list(result.get("rejected", [])) if isinstance(result, dict) else []
     decision_values = {key: value.get("decision") for key, value in decisions.items()}
+    panel_values = {
+        str(row.get("finding_id")): row
+        for row in (adjudication.get("findings", []) if isinstance(adjudication, dict) else [])
+        if isinstance(row, dict) and row.get("finding_id")
+    }
     for finding in confirmed + rejected:
         finding["panel_decision"] = decision_values.get(str(finding.get("id", "")), "pending")
+        panel = panel_values.get(str(finding.get("id", "")))
+        if panel:
+            finding["panel_verdict"] = panel.get("verdict", "unverifiable")
+            finding["panel_reason"] = panel.get("reason", "")
     role_by_id = {str(role.get("id")): role for role in roles}
     task_labels = {"ingest": "解析", "deterministic": "确定性检查", "verify": "门禁与报告", "revise": "副本修改", "regression": "回归复验", "author_approval": "作者确认"}
 
@@ -149,7 +160,15 @@ def build_state(run_dir: str | Path) -> dict:
         "roles": roles,
         "findings": {"confirmed": confirmed, "rejected": rejected},
         "decisions": decisions,
-        "coverage": {"confirmed": len(confirmed), "rejected": len(rejected), "accepted": sum(v == "accept" for v in decision_values.values()), "contested": sum(v == "contest" for v in decision_values.values())},
+        "coverage": {
+            "confirmed": len(confirmed),
+            "rejected": len(rejected),
+            "accepted": sum(v == "accept" for v in decision_values.values()),
+            "contested": sum(v == "contest" for v in decision_values.values()),
+            "panel_verdicts": dict((adjudication.get("summary", {}) if isinstance(adjudication, dict) else {})),
+        },
+        "adjudication": adjudication if isinstance(adjudication, dict) else {},
+        "revision_plan": revision_plan if isinstance(revision_plan, dict) else {},
         "artifacts": artifacts,
         "trace": trace,
         "trace_cursor": len(trace),

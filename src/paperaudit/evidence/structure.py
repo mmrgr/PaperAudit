@@ -101,7 +101,11 @@ def _required_sections(doc: DocumentIR) -> list[Finding]:
             severity=Severity.MAJOR,
             confidence=0.7,
             block_ids=[b.id for b in doc.blocks if b.heading_level == 1][:1],
-            verbatim_quote="、".join(missing),
+            # These are absent sections, so there is no source substring to
+            # quote. Keep the names as structured evidence instead of a
+            # comma-separated pseudo-quote that could pass on one token.
+            verbatim_quote="",
+            evidence_refs=missing,
             rationale=f"缺少常见必需章节：{'、'.join(missing)}。"
             "（按通用学术文档清单判断；若目标模板不同请导入对应清单。）",
             checklist_id="pre-submission/structure",

@@ -1,13 +1,17 @@
 """确定性扫描入口。"""
 
-from . import citations, crossref, numbers, structure, terminology
+from . import citations, crossref, numbers, numeric_facts, privacy, structure, terminology
 
 DETECTORS = {
     "structure": structure.check,
     "citations": citations.check,
     "crossref": crossref.check,
     "terminology": terminology.check,
-    "numbers": numbers.check,
+    # Keep the public detector name stable while using the richer fact graph.
+    # ``numbers`` remains importable for callers that rely on the legacy
+    # conservative metric scanner.
+    "numbers": numeric_facts.check,
+    "privacy": privacy.check,
 }
 
 
@@ -18,6 +22,7 @@ def run_all(doc, only: list[str] | None = None, skip: list[str] | None = None):
     skip = set(skip or [])
     names = only or list(DETECTORS)
     out: list[Finding] = []
+    ran: list[str] = []
     for name in names:
         if name in skip:
             continue
@@ -26,6 +31,7 @@ def run_all(doc, only: list[str] | None = None, skip: list[str] | None = None):
             continue
         try:
             out.extend(fn(doc))
+            ran.append(name)
         except Exception as exc:
             out.append(
                 Finding(
@@ -39,4 +45,9 @@ def run_all(doc, only: list[str] | None = None, skip: list[str] | None = None):
                     gate_reason="detector-error",
                 )
             )
+    # Keep the execution plan on the IR so reports can show real coverage when
+    # callers use --only/--skip instead of assuming every detector ran.
+    if hasattr(doc, "metadata"):
+        doc.metadata["detectors_run"] = sorted(set(ran))
+        doc.metadata["detectors_requested"] = [str(name) for name in names if name not in skip]
     return out

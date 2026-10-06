@@ -61,6 +61,10 @@ class Block:
     is_bibliography: bool = False
     # table payload
     rows: list[list[str]] = field(default_factory=list)
+    # Native PDF anchors.  DOCX blocks leave these unset; PDF readers may
+    # populate page/bounding-box coordinates without changing block IDs.
+    page: int | None = None
+    bbox: tuple[float, float, float, float] | None = None
 
     @property
     def length(self) -> int:
@@ -178,6 +182,7 @@ class IssueType(str, Enum):
     REPRODUCIBILITY_GAP = "reproducibility_gap"
     CLARITY = "clarity"
     OVERCLAIM = "overclaim"
+    PRIVACY_RISK = "privacy_risk"
     OTHER = "other"
 
 
@@ -244,6 +249,13 @@ class EditProposal:
     new_text: str
     rationale: str = ""
     risk_flags: list[str] = field(default_factory=list)
+    # Optimistic-lock precondition.  ``old_text`` remains for API compatibility;
+    # new callers should set this field explicitly when proposing a patch.
+    expected_old_text: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.expected_old_text:
+            self.expected_old_text = self.old_text
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
