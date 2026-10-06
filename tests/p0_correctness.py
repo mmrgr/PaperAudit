@@ -5,10 +5,11 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+from paperaudit.evidence import DETECTORS, run_all
 from paperaudit.evidence.crossref import check as check_crossref
-from paperaudit.models import Block, BlockKind, DocumentIR, Finding, IssueType, Severity
+from paperaudit.models import Block, BlockKind, DocumentIR, Finding, IssueType, Severity, Verdict
 from paperaudit.prepare import CHUNK_LIMIT, _template, _write_chunks
-from paperaudit.reporting import to_markdown
+from paperaudit.reporting import apply_gate, to_markdown
 from paperaudit.verify import _map_type
 
 
@@ -32,6 +33,20 @@ def main() -> int:
     llm.gate_passed = True
     report = to_markdown(doc, [det, llm])
     assert "确定性检查与语言模型" in report
+
+    # Detector failures are diagnostics and must stay unverifiable even when
+    # the deterministic gate is called with allow_empty=True.
+    original_detector = DETECTORS["structure"]
+    DETECTORS["structure"] = lambda _doc: (_ for _ in ()).throw(RuntimeError("boom"))
+    try:
+        failed = run_all(doc, only=["structure"])
+        assert failed and failed[0].gate_reason == "detector-error"
+        assert failed[0].verdict is Verdict.UNVERIFIABLE
+        apply_gate(doc, failed)
+        assert failed[0].gate_passed is False
+        assert failed[0].verdict is Verdict.UNVERIFIABLE
+    finally:
+        DETECTORS["structure"] = original_detector
 
     assert _map_type({"checklist_id": "C03"}) is IssueType.CITATION_MISSING
     assert _map_type({"checklist_id": "C04"}) is IssueType.CITATION_NUMBERING

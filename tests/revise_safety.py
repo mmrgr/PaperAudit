@@ -36,7 +36,10 @@ class RevisionSafetyTests(unittest.TestCase):
         result = apply_revision(source, run, ["F1"], out_path=output, backup=False)
         self.assertEqual(result["status"], "error")
         self.assertIn("expected_old_text", result["failed"][0]["reason"])
-        self.assertEqual(Document(output).paragraphs[0].text, "old one")
+        self.assertIsNone(result["output"])
+        self.assertFalse(output.exists())
+        self.assertTrue((run / "revision.plan.json").exists())
+        self.assertTrue((run / "revision.diff").exists())
 
     def test_multi_block_fixes_require_per_block_replacements(self):
         _, source, run, output = self._run([{

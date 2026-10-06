@@ -37,6 +37,15 @@ def gate_finding(doc: DocumentIR, finding: Finding, *, allow_empty: bool = True)
     def norm(s: str) -> str:
         return re.sub(r"\s+", "", s or "")
 
+    # A detector failure is a diagnostic, never an empty-quote finding.  Keep
+    # this guard here because deterministic callers intentionally use
+    # ``allow_empty=True`` for legitimate absence checks; without the guard a
+    # detector exception could be promoted to a confirmed finding on rerun.
+    if finding.gate_reason == "detector-error":
+        finding.gate_passed = False
+        finding.verdict = Verdict.UNVERIFIABLE
+        return finding
+
     if not finding.verbatim_quote:
         finding.gate_passed = allow_empty
         finding.gate_reason = "no-quote" if allow_empty else "missing-quote"

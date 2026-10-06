@@ -147,11 +147,9 @@ def apply_revision(
     revision_plan["revision_plan"] = str(run_dir / "revision.plan.json")
     _persist_revision_plan(run_dir, revision_plan)
     if not planned:
-        # Keep the historical API contract: callers may inspect the proposed
-        # output even when every edit is rejected.  This is an unchanged copy,
-        # never a partially patched document.
-        out.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, out)
+        # A blocked plan must not create a file that looks like a successful
+        # revision.  The plan and diff above are the review artifacts; callers
+        # can retry after resolving the failed proposals.
         return {
             "status": "error",
             "message": "没有可安全应用的修订建议。",

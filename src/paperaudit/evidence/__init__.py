@@ -17,7 +17,7 @@ DETECTORS = {
 
 def run_all(doc, only: list[str] | None = None, skip: list[str] | None = None):
     """运行确定性检查。零 LLM 调用。"""
-    from paperaudit.models import Finding, IssueType, Severity
+    from paperaudit.models import Finding, IssueType, Severity, Verdict
 
     skip = set(skip or [])
     names = only or list(DETECTORS)
@@ -41,6 +41,7 @@ def run_all(doc, only: list[str] | None = None, skip: list[str] | None = None):
                     confidence=1.0,
                     rationale=f"检测器 {name} 执行失败：{exc}",
                     source="deterministic",
+                    verdict=Verdict.UNVERIFIABLE,
                     gate_passed=False,
                     gate_reason="detector-error",
                 )
