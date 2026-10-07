@@ -14,11 +14,11 @@ from pathlib import Path
 
 import docx
 
-from paperaudit.evidence import run_all
-from paperaudit.ingest import read_docx
-from paperaudit.reporting import apply_gate
+from paperrevamper.evidence import run_all
+from paperrevamper.ingest import read_docx
+from paperrevamper.reporting import apply_gate
 
-# 源文档：优先命令行参数，其次环境变量 PAPERAUDIT_SAMPLE，最后默认路径。
+# 源文档：优先命令行参数，其次环境变量 PAPERREVAMPER_SAMPLE，最后默认路径。
 # 原开题报告样本已不在，请传入任意 .docx 作为基准。
 DEFAULT_SRC = Path(r"C:\Users\mmrgr\Desktop\开题\开题报告3.3.docx")
 
@@ -26,7 +26,7 @@ DEFAULT_SRC = Path(r"C:\Users\mmrgr\Desktop\开题\开题报告3.3.docx")
 def _resolve_src() -> Path:
     if len(sys.argv) > 1:
         return Path(sys.argv[1])
-    env = os.environ.get("PAPERAUDIT_SAMPLE")
+    env = os.environ.get("PAPERREVAMPER_SAMPLE") or os.environ.get("PAPERAUDIT_SAMPLE")
     if env:
         return Path(env)
     return DEFAULT_SRC
@@ -77,7 +77,7 @@ def main() -> int:
     if not src.exists():
         print(f"[错误] 源文档不存在：{src}", file=sys.stderr)
         print("用法：python tests/seeded_check.py <任意.docx>", file=sys.stderr)
-        print("      或设置环境变量 PAPERAUDIT_SAMPLE=<路径>", file=sys.stderr)
+        print("      或设置环境变量 PAPERREVAMPER_SAMPLE=<路径>", file=sys.stderr)
         return 2
 
     tmp = Path(__file__).parent / "_tmp"

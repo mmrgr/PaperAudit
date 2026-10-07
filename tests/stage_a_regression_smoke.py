@@ -14,14 +14,14 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from paperaudit import llm  # noqa: E402
-from paperaudit.llm import _validate_endpoint  # noqa: E402
-from paperaudit.models import Block, BlockKind, DocumentIR, Finding, IssueType, Severity  # noqa: E402
-from paperaudit.panel import PanelHandler  # noqa: E402
-from paperaudit import panel as panel_module  # noqa: E402
-from paperaudit.panel_state import append_decision, build_state  # noqa: E402
-from paperaudit.reporting import gate_finding  # noqa: E402
-from paperaudit.runner import _MAX_ARTIFACT_BYTES, _read_artifacts  # noqa: E402
+from paperrevamper import llm  # noqa: E402
+from paperrevamper.llm import _validate_endpoint  # noqa: E402
+from paperrevamper.models import Block, BlockKind, DocumentIR, Finding, IssueType, Severity  # noqa: E402
+from paperrevamper.panel import PanelHandler  # noqa: E402
+from paperrevamper import panel as panel_module  # noqa: E402
+from paperrevamper.panel_state import append_decision, build_state  # noqa: E402
+from paperrevamper.reporting import gate_finding  # noqa: E402
+from paperrevamper.runner import _MAX_ARTIFACT_BYTES, _read_artifacts  # noqa: E402
 
 
 def main() -> None:
@@ -73,7 +73,7 @@ def main() -> None:
     )
     assert not gate_finding(document, fabricated).gate_passed
 
-    with tempfile.TemporaryDirectory(prefix="paperaudit-stage-a-") as temp:
+    with tempfile.TemporaryDirectory(prefix="paperrevamper-stage-a-") as temp:
         run = Path(temp)
         (run / "manifest.json").write_text(json.dumps({"hash": "hash-new"}), encoding="utf-8")
         (run / "findings.json").write_text(
@@ -176,7 +176,7 @@ def _assert_redirect_is_blocked() -> None:
 
 
 def _assert_remote_resume_revalidates_endpoint() -> None:
-    with tempfile.TemporaryDirectory(prefix="paperaudit-resume-policy-") as temp:
+    with tempfile.TemporaryDirectory(prefix="paperrevamper-resume-policy-") as temp:
         config_path = Path(temp) / "config.json"
         config_path.write_text(
             json.dumps({"active_profile": "custom", "profiles": [{"id": "custom", "protocol": "openai_compatible", "base_url": "http://127.0.0.1", "model": "m", "enabled": True}]}),

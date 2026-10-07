@@ -1,4 +1,4 @@
-# PaperAudit 后续开发计划
+# PaperRevamper 后续开发计划
 
 更新时间：2026-10-07
 

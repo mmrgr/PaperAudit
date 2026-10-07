@@ -12,9 +12,9 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from docx import Document  # noqa: E402
 
-from paperaudit.ingest import read_docx  # noqa: E402
-from paperaudit.prepare import prepare  # noqa: E402
-from paperaudit.venue import audit_required_sections, list_venues, resolve_venue  # noqa: E402
+from paperrevamper.ingest import read_docx  # noqa: E402
+from paperrevamper.prepare import prepare  # noqa: E402
+from paperrevamper.venue import audit_required_sections, list_venues, resolve_venue  # noqa: E402
 
 
 def main() -> None:
@@ -24,7 +24,7 @@ def main() -> None:
     profile_data = profile.to_dict()
     assert profile_data["stop_criteria_status"] == "advisory"
     assert profile_data["stop_criteria_evaluated"] is False
-    with tempfile.TemporaryDirectory(prefix="paperaudit-venue-") as temp:
+    with tempfile.TemporaryDirectory(prefix="paperrevamper-venue-") as temp:
         root = Path(temp)
         source = root / "paper.docx"
         document = Document()

@@ -4,6 +4,6 @@ __pycache__/
 build/
 dist/
 out/
-src/paperaudit.egg-info/
+src/paperrevamper.egg-info/
 tests/_tmp/
 *.log

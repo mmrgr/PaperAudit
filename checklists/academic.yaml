@@ -1,4 +1,4 @@
-# PaperAudit 学术审查清单（作者投前自审）
+# PaperRevamper 学术审查清单（作者投前自审）
 #
 # 设计原则（docs/PLAN_v2.md §零）：
 #   瓶颈在「定位错误」而非「修复」——RefineBench 证明给出显式清单后性能跃升。

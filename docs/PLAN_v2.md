@@ -1,4 +1,4 @@
-# PaperAudit 设计方案 v2（V1 实施规格）
+# PaperRevamper 设计方案 v2（V1 实施规格）
 
 >  supersedes `PLAN.md`。变更依据：用户对 6 个决策点的答复 + 对 GPT 建议的批判性吸收。
 
@@ -132,7 +132,7 @@ Delphi 独立首轮 + 匿名聚合、skeptic 角色、确定性验证优先于 L
 ```
 
 **原文件不变的三重保证：**
-1. 所有写入发生在 `.paperaudit/runs/<run_id>/workspace/`，不在源目录；
+1. 所有写入发生在 `.paperrevamper/runs/<run_id>/workspace/`，不在源目录；
 2. `revise` 前自动创建 `.bak`（时间戳命名）；
 3. Level C（实质性修改）**永远只出建议，不自动写入**。
 
@@ -141,8 +141,8 @@ Delphi 独立首轮 + 匿名聚合、skeptic 角色、确定性验证优先于 L
 ## 三、模块与目录（V1 精简版）
 
 ```
-PaperAudit/
-├─ src/paperaudit/
+PaperRevamper/
+├─ src/paperrevamper/
 │  ├─ models.py             # 五组核心 schema（见 §4）
 │  ├─ ingest/
 │  │  ├─ docx_reader.py     # 段落/表格有序遍历、run 拼接、字符区间↔run 映射
@@ -253,15 +253,15 @@ finding 从"某个 reviewer 的观察"升级为"confirmed 问题"必须过这一
 
 ### 4.2 与本机已有学术 skill 的边界
 
-`~/.agents/skills/` 下已有 `nature-citation`、`nature-polishing`、`nature-writing`、`academic-humanizer`、`literature-deep-reader` 等一批学术 skill。它们全是**生成型**的，没有一个是**验证型**的。这决定了 PaperAudit 的存在价值，也决定了它应该与它们叠加而非竞争：
+`~/.agents/skills/` 下已有 `nature-citation`、`nature-polishing`、`nature-writing`、`academic-humanizer`、`literature-deep-reader` 等一批学术 skill。它们全是**生成型**的，没有一个是**验证型**的。这决定了 PaperRevamper 的存在价值，也决定了它应该与它们叠加而非竞争：
 
-| 已有 skill | 它做什么 | PaperAudit 做什么 |
+| 已有 skill | 它做什么 | PaperRevamper 做什么 |
 |---|---|---|
 | `nature-citation` | 帮你**找**引用、补引用 | 检查你**已有**的引用是否真实存在、是否支持所附论断 |
 | `academic-humanizer` | 提升文字清晰度（自述"绝不改数字/结果/引用"） | 检查数字/结果/引用**是否自洽**；在润色之后验证有没有改坏 |
 | `nature-polishing` | 润色表达 | 上游找真问题、下游做回归守门 |
 
-典型串联：`PaperAudit review` → `academic-humanizer` 润色 → `PaperAudit check-citations` 复验。
+典型串联：`PaperRevamper review` → `academic-humanizer` 润色 → `PaperRevamper check-citations` 复验。
 
 ### 4.3 DOCX 实战坑（本机已有经验，必须照做）
 
@@ -331,22 +331,22 @@ T6  逐 patch 验证 + 冲突图合并 + 全局回归        [并行验证，串
 
 ```bash
 # 阶段 1：只出意见，不碰文件
-paperaudit review paper.docx --format json
+paperrevamper review paper.docx --format json
 # stdout: {"run_id":"...","status":"completed","findings":34,
-#          "major":6,"report":".paperaudit/runs/<id>/review.md",
-#          "findings_json":".paperaudit/runs/<id>/findings.json"}
+#          "major":6,"report":".paperrevamper/runs/<id>/review.md",
+#          "findings_json":".paperrevamper/runs/<id>/findings.json"}
 
 # 阶段 2：按勾选项在副本上修订
-paperaudit revise <RUN_ID> --findings F003,F007 --out ./revised/
+paperrevamper revise <RUN_ID> --findings F003,F007 --out ./revised/
 # stdout: {"status":"ok","applied":2,"rejected":0,
 #          "output":"./revised/paper_revised.docx",
 #          "backup":".../paper.docx.bak-20260923-001200",
-#          "diff":".paperaudit/runs/<id>/changes/accepted.diff"}
+#          "diff":".paperrevamper/runs/<id>/changes/accepted.diff"}
 
 # 辅助
-paperaudit inspect <RUN_ID>
-paperaudit report <RUN_ID> --format html
-paperaudit check-citations paper.docx --format json   # 只跑确定性检查，零 LLM
+paperrevamper inspect <RUN_ID>
+paperrevamper report <RUN_ID> --format html
+paperrevamper check-citations paper.docx --format json   # 只跑确定性检查，零 LLM
 ```
 
 Codex 侧放 `.agents/skills/paper-audit/SKILL.md`；WorkBuddy 侧放用户级 `~/.workbuddy/skills/paper-audit/SKILL.md`，两者都走 **CLI + Skill**（不塞进同步 MCP 请求——审查耗时长，且大量工作是本地文件操作）。
@@ -357,7 +357,7 @@ Codex 侧放 `.agents/skills/paper-audit/SKILL.md`；WorkBuddy 侧放用户级 `
 
  seeded fixture 先行（30～50 篇，每篇埋 5～15 个已知缺陷：引用缺失/错配、摘要与正文数字不符、图表编号错引、缩写未定义、结论强于结果、术语不一致等），再补少量真实修订对。
 
-**基线对比必须 budget-matched**：`direct_llm`（一次调用，花光预算）vs `paperaudit`，同基础模型。
+**基线对比必须 budget-matched**：`direct_llm`（一次调用，花光预算）vs `paperrevamper`，同基础模型。
 
 | 指标 | 门槛 |
 |---|---|
@@ -373,7 +373,7 @@ Codex 侧放 `.agents/skills/paper-audit/SKILL.md`；WorkBuddy 侧放用户级 `
 
 ## 八、待定
 
-- 项目命名：`PaperAudit` vs GPT 建议的 `PaperDelphi`（不影响架构，可随时改）。
+- 项目命名：`PaperRevamper` vs GPT 建议的 `PaperDelphi`（不影响架构，可随时改）。
 - 是否需要在 V1 支持批量多篇（目前按单篇设计）。
 
 ---
@@ -383,7 +383,7 @@ Codex 侧放 `.agents/skills/paper-audit/SKILL.md`；WorkBuddy 侧放用户级 `
 刻意让 M1 就产出可用价值，且**零 LLM 成本**——让你在投入任何调用额度之前先拿到真东西。
 
 ```
-M1  ingest + evidence        能跑 paperaudit check-citations paper.docx
+M1  ingest + evidence        能跑 paperrevamper check-citations paper.docx
                              → 零 LLM，出第一批确定性发现（引用/编号/交叉引用）
 M2  单 reviewer + 报告       端到端最小闭环，验证 context packet 与证据门禁
 M3  5 reviewer 并行 + Finding Graph

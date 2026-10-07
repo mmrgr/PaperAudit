@@ -11,12 +11,12 @@ from docx import Document
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from paperaudit.prepare import prepare
-from paperaudit.verify import verify
+from paperrevamper.prepare import prepare
+from paperrevamper.verify import verify
 
 
 def main() -> None:
-    with TemporaryDirectory(prefix="paperaudit-snapshot-") as raw:
+    with TemporaryDirectory(prefix="paperrevamper-snapshot-") as raw:
         root = Path(raw)
         source = root / "paper.docx"
         run = root / "run"

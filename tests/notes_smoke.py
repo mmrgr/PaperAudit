@@ -10,7 +10,7 @@ from docx import Document
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from paperaudit.ingest import read_docx  # noqa: E402
+from paperrevamper.ingest import read_docx  # noqa: E402
 
 
 def main() -> int:

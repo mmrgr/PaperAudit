@@ -1,6 +1,6 @@
 """Run a bounded PDF -> text DOCX smoke test.
 
-PaperAudit is intentionally DOCX-only. This script is a test adapter, not a
+PaperRevamper is intentionally DOCX-only. This script is a test adapter, not a
 PDF ingestion implementation: it preserves page boundaries as plain text,
 then runs the existing deterministic checks on the projected DOCX. The report
 records what the projection cannot preserve (layout, tables, figures, and
@@ -16,9 +16,9 @@ from pathlib import Path
 
 from docx import Document
 
-from paperaudit.evidence import run_all
-from paperaudit.ingest import read_docx
-from paperaudit.reporting import apply_gate, to_json, to_markdown
+from paperrevamper.evidence import run_all
+from paperrevamper.ingest import read_docx
+from paperrevamper.reporting import apply_gate, to_json, to_markdown
 
 
 def _extract(pdf_path: Path) -> tuple[dict, list[str]]:
@@ -102,7 +102,7 @@ def run(pdf_path: Path, output_dir: Path) -> dict:
         "findings": str(output_dir / "findings.json"),
         "review": str(output_dir / "review.md"),
         "limitations": [
-            "仅测试 PDF 文本抽取后的 DOCX 适配层，不代表 PaperAudit 原生支持 PDF。",
+            "仅测试 PDF 文本抽取后的 DOCX 适配层，不代表 PaperRevamper 原生支持 PDF。",
             "双栏顺序、表格、图形、公式、页眉页脚和版式信息未保留。",
             "当前引用检测器主要识别 [n] 编号制，作者-年份引用可能漏检。",
             "未执行 apply，避免对从 PDF 投影出的非原生文档做改写。",
@@ -115,7 +115,7 @@ def run(pdf_path: Path, output_dir: Path) -> dict:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="PaperAudit PDF 适配层 smoke test")
+    parser = argparse.ArgumentParser(description="PaperRevamper PDF 适配层 smoke test")
     parser.add_argument("pdf", type=Path)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()

@@ -12,7 +12,7 @@ from docx import Document
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
-from paperaudit.revise import _compare_findings, _replace_keep_style, apply_revision, build_revision_plan
+from paperrevamper.revise import _compare_findings, _replace_keep_style, apply_revision, build_revision_plan
 
 
 class RevisionSafetyTests(unittest.TestCase):

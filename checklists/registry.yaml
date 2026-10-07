@@ -1,5 +1,5 @@
 version: 1
-name: PaperAudit checklist registry
+name: PaperRevamper checklist registry
 
 # The registry is deliberately metadata-only.  Checklist content stays in
 # separate YAML files so venues and study-design packs can be added without

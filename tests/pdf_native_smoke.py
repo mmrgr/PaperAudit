@@ -8,8 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from paperaudit.evidence import run_all  # noqa: E402
-from paperaudit.ingest import read_pdf  # noqa: E402
+from paperrevamper.evidence import run_all  # noqa: E402
+from paperrevamper.ingest import read_pdf  # noqa: E402
 
 
 def main() -> None:
@@ -22,7 +22,7 @@ def main() -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     pdf = canvas.Canvas(str(out), pagesize=(595, 842))
     pdf.setAuthor("Alice Example")
-    pdf.setTitle("PaperAudit native PDF smoke")
+    pdf.setTitle("PaperRevamper native PDF smoke")
     pdf.setFont("Helvetica-Bold", 16)
     pdf.drawString(72, 780, "1 Introduction")
     pdf.setFont("Helvetica", 10)

@@ -13,7 +13,7 @@ version: 0.2.0
 allowed-tools: Bash,Read,Write,Edit,Grep
 ---
 
-# PaperAudit —— 论文投前自审与修改
+# PaperRevamper —— 论文投前自审与修改
 
 **分工**：工具做它擅长的（解析、定位、清单、门禁、改写执行、回归）；**你做你擅长的**（语义审查与判断）。
 默认不需要 API Key，且天然支持并行（分批读章节）；若用户显式配置 provider，也可以通过 `run-review` 执行结构化模型角色。
@@ -42,14 +42,14 @@ allowed-tools: Bash,Read,Write,Edit,Grep
 也可以把配置保存为 JSON，供命令行复用：
 
 ```powershell
-python -m paperaudit.cli prepare 论文.docx --out run --workflow workflow.json
+python -m paperrevamper.cli prepare 论文.docx --out run --workflow workflow.json
 ```
 
-配置会写入 `collaboration.plan.json` 并带有 workflow hash。依赖必须指向已存在任务且不能形成环；角色输出文件只能是运行目录内的相对路径。默认由宿主 Agent 执行角色；显式模型 profile 可用 `python -m paperaudit.cli run-review <运行目录> --profile <id>` 执行，结果仍必须经过同一套 schema、证据门禁和报告生成。
+配置会写入 `collaboration.plan.json` 并带有 workflow hash。依赖必须指向已存在任务且不能形成环；角色输出文件只能是运行目录内的相对路径。默认由宿主 Agent 执行角色；显式模型 profile 可用 `python -m paperrevamper.cli run-review <运行目录> --profile <id>` 执行，结果仍必须经过同一套 schema、证据门禁和报告生成。
 
 `run-review` 会把 plan/profile 指纹和已完成角色写入 `review.runtime.json`；重试时只重跑缺失或失败角色。使用 `--fresh` 可显式清空 checkpoint 并全部重跑。
 
-如果配置了两个独立 judge model，可在 `verify` 后用 `python -m paperaudit.cli run-panel <运行目录> --profiles <model-a> <model-b> --config <llm.json>` 自动执行双位置 provider 任务。长审查包按 bounded finding batch 拆分；每个模型/位置/batch 响应写入独立 JSON，`panel.runtime.json` 保存输入指纹、完成任务和失败原因，默认可恢复；`--fresh` 强制重跑。也可以用 `adjudicate <运行目录> --judgments <panel.json>` 聚合已有判断。每条记录必须包含 `finding_id`、`judge_model`、`position`（`claim_first`/`evidence_first`）和 `verdict`（`yes`/`no`/`cannot_assess`）。代码只把两模型、两位置全部一致的结果标为 `confirmed` 或 `refuted`；其余保留为 `contested` 或 `unverifiable`，并写入 `adjudication.json`。模型响应解析失败会保留失败任务，不会把缺失判断当成支持。
+如果配置了两个独立 judge model，可在 `verify` 后用 `python -m paperrevamper.cli run-panel <运行目录> --profiles <model-a> <model-b> --config <llm.json>` 自动执行双位置 provider 任务。长审查包按 bounded finding batch 拆分；每个模型/位置/batch 响应写入独立 JSON，`panel.runtime.json` 保存输入指纹、完成任务和失败原因，默认可恢复；`--fresh` 强制重跑。也可以用 `adjudicate <运行目录> --judgments <panel.json>` 聚合已有判断。每条记录必须包含 `finding_id`、`judge_model`、`position`（`claim_first`/`evidence_first`）和 `verdict`（`yes`/`no`/`cannot_assess`）。代码只把两模型、两位置全部一致的结果标为 `confirmed` 或 `refuted`；其余保留为 `contested` 或 `unverifiable`，并写入 `adjudication.json`。模型响应解析失败会保留失败任务，不会把缺失判断当成支持。
 
 ### 学术 skills 的职责边界
 
@@ -67,13 +67,13 @@ python -m paperaudit.cli prepare 论文.docx --out run --workflow workflow.json
 
 ## 命令形式（重要）
 
-Scripts 目录不在 PATH，**必须用 `python -m paperaudit.cli`，不要用裸 `paperaudit` 命令**。
+Scripts 目录不在 PATH，**必须用 `python -m paperrevamper.cli`，不要用裸 `paperrevamper` 命令**。
 
 ```bash
-python -m paperaudit.cli <子命令> ...
+python -m paperrevamper.cli <子命令> ...
 ```
 
-若报 `No module named paperaudit`，到项目目录执行 `pip install -e .` 后重试。
+若报 `No module named paperrevamper`，到项目目录执行 `pip install -e .` 后重试。
 
 ---
 
@@ -82,9 +82,9 @@ python -m paperaudit.cli <子命令> ...
 ### 第 1 步：prepare —— 生成审查包
 
 ```bash
-python -m paperaudit.cli prepare <文件.docx> --out <运行目录>
+python -m paperrevamper.cli prepare <文件.docx> --out <运行目录>
 # 有经审核的投稿配置时，显式启用其章节门禁
-python -m paperaudit.cli prepare <文件.docx> --out <运行目录> --venue <venue-id-or-yaml>
+python -m paperrevamper.cli prepare <文件.docx> --out <运行目录> --venue <venue-id-or-yaml>
 ```
 
 | 产物 | 用途 |
@@ -129,7 +129,7 @@ python -m paperaudit.cli prepare <文件.docx> --out <运行目录> --venue <ven
 ### 第 3 步：verify —— 门禁与报告
 
 ```bash
-python -m paperaudit.cli verify <运行目录>
+python -m paperrevamper.cli verify <运行目录>
 ```
 
 1. **证据门禁** —— 引文匹配失败的条目降级 `unverifiable`，**不计入确认问题**
@@ -139,7 +139,7 @@ python -m paperaudit.cli verify <运行目录>
 ### 第 4 步：plan-revision —— 生成 EditProposal 预览
 
 ```bash
-python -m paperaudit.cli plan-revision <原文件.docx> --run-dir <运行目录> \
+python -m paperrevamper.cli plan-revision <原文件.docx> --run-dir <运行目录> \
   --findings F003,F007 --format markdown
 ```
 
@@ -148,7 +148,7 @@ python -m paperaudit.cli plan-revision <原文件.docx> --run-dir <运行目录>
 ### 第 5 步：apply —— 改写（须用户确认后）
 
 ```bash
-python -m paperaudit.cli apply <原文件.docx> --run-dir <运行目录> \
+python -m paperrevamper.cli apply <原文件.docx> --run-dir <运行目录> \
   --findings F003,F007 [--text "改写后的段落文本"] [--out 输出路径]
 ```
 

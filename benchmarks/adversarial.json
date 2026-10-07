@@ -1,6 +1,6 @@
 {
   "version": "benchmark-adversarial-v1",
-  "name": "PaperAudit controlled adversarial regression corpus",
+  "name": "PaperRevamper controlled adversarial regression corpus",
   "description": "Small de-identified DocumentIR cases for citation, cross-reference, numeric, terminology, and structure false-positive guards.",
   "cases": [
     {

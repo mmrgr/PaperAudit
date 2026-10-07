@@ -10,8 +10,8 @@ without private manuscripts or external services:
 
 ```powershell
 $env:PYTHONPATH = "src"
-python -m paperaudit.cli benchmark benchmarks/smoke.json --format markdown --fail-under 1
-python -m paperaudit.cli benchmark benchmarks/adversarial.json --format markdown --fail-under 1
+python -m paperrevamper.cli benchmark benchmarks/smoke.json --format markdown --fail-under 1
+python -m paperrevamper.cli benchmark benchmarks/adversarial.json --format markdown --fail-under 1
 ```
 
 For a real evaluation corpus, use local `path` entries and annotate each case

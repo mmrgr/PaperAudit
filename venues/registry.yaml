@@ -1,5 +1,5 @@
 version: 1
-name: PaperAudit venue profile registry
+name: PaperRevamper venue profile registry
 
 # These profiles are conservative templates, not official publisher rules.
 # Replace or extend them with a reviewed local profile before submission.
@@ -14,4 +14,4 @@ venues:
       - 引用完整性与数字一致性检查无未解释失败
     scope: template
     status: builtin-template
-    source_url: https://github.com/mmrgr/PaperAudit
+    source_url: https://github.com/mmrgr/PaperRevamper

@@ -1,4 +1,4 @@
-# PaperAudit 多 Agent 学术审查实施计划
+# PaperRevamper 多 Agent 学术审查实施计划
 
 ## 设计依据
 
@@ -34,13 +34,13 @@ verify：统一 quote/block 门禁 + 精确去重 + 角色覆盖报告
 
 1. `skills/academic/registry.yaml`：skill provenance、触发条件、输出契约和边界。
 2. `checklists/skill-routing.yaml`：清单组到角色和 skill 的路由。
-3. `src/paperaudit/collaboration.py`：角色、短 contract、任务依赖和 plan artifact。
+3. `src/paperrevamper/collaboration.py`：角色、短 contract、任务依赖和 plan artifact。
 4. `prepare`：生成 `collaboration.plan.json`、`collaboration.md`，manifest 记录角色计划。
 5. `verify`：按顺序计划汇总 `findings.<role>.json`，执行证据门禁、保守去重并报告各角色状态和候选数。
 6. `Finding`：补充 reviewer、页/字符锚点、owner skill 和兼容性的 suggested fix 字段。
 7. 项目/`.agents`/WorkBuddy 三处 `paper-audit` skill 已同步多 Agent 协作说明。
 8. `trace.jsonl` 记录 `prepare_complete`、角色输入加载和 `verify_complete`，`review.md` 展示实际角色覆盖；缺失角色保持 `pending`。
-9. `paperaudit panel` 提供本地控制面板：状态图、角色任务、证据意见、作者决策、源 hash 门禁、副本修改和回归轨迹。
+9. `paperrevamper panel` 提供本地控制面板：状态图、角色任务、证据意见、作者决策、源 hash 门禁、副本修改和回归轨迹。
 10. 流程编辑器允许新增/停用角色、修改 skills/清单组/并行组/提示词，并校验任务依赖环；自定义流程只作用于新运行。
 11. `run-review` 提供显式 provider 的结构化角色执行、并行依赖调度、输出 hash、plan/profile checkpoint 和 `--fresh` 重跑。
 12. 原生 PDF/GROBID TEI、引用完整性、本地证据、隐私审计、数字事实图、清单 registry、Finding Graph、benchmark runner、provider-backed 双位置 panel runner 和确定性聚合已接入。

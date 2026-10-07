@@ -5,12 +5,12 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from paperaudit.evidence import DETECTORS, run_all
-from paperaudit.evidence.crossref import check as check_crossref
-from paperaudit.models import Block, BlockKind, DocumentIR, Finding, IssueType, Severity, Verdict
-from paperaudit.prepare import CHUNK_LIMIT, _template, _write_chunks
-from paperaudit.reporting import apply_gate, to_markdown
-from paperaudit.verify import _map_type
+from paperrevamper.evidence import DETECTORS, run_all
+from paperrevamper.evidence.crossref import check as check_crossref
+from paperrevamper.models import Block, BlockKind, DocumentIR, Finding, IssueType, Severity, Verdict
+from paperrevamper.prepare import CHUNK_LIMIT, _template, _write_chunks
+from paperrevamper.reporting import apply_gate, to_markdown
+from paperrevamper.verify import _map_type
 
 
 def main() -> int:

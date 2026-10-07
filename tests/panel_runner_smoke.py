@@ -11,7 +11,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from paperaudit.panel_runner import run_panel
+from paperrevamper.panel_runner import run_panel
 
 
 def main() -> int:

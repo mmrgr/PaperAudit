@@ -1,4 +1,4 @@
-name: PaperAudit CI
+name: PaperRevamper CI
 
 on:
   push:
@@ -24,7 +24,7 @@ jobs:
       - name: Compile package and tests
         run: python -m compileall -q src tests
       - name: Check bundled control panel is synchronized
-        run: diff -u ui/control-panel.html src/paperaudit/static/control-panel.html
+        run: diff -u ui/control-panel.html src/paperrevamper/static/control-panel.html
       - name: Run deterministic smoke suite
         run: python tests/smoke_suite.py
       - name: Build wheel
@@ -50,10 +50,10 @@ jobs:
           PYTHONUTF8: "1"
           PYTHONIOENCODING: "utf-8"
         run: |
-          $exe = Join-Path $env:GITHUB_WORKSPACE 'dist\PaperAudit\PaperAudit.exe'
+          $exe = Join-Path $env:GITHUB_WORKSPACE 'dist\PaperRevamper\PaperRevamper.exe'
           if (-not (Test-Path $exe)) { throw "Missing packaged executable: $exe" }
           & $exe --help
           if ($LASTEXITCODE -ne 0) { throw "Packaged executable --help failed with exit code $LASTEXITCODE" }
-          foreach ($required in @('_internal\checklists\academic.yaml', '_internal\venues\registry.yaml', '_internal\paperaudit\static\control-panel.html')) {
+          foreach ($required in @('_internal\checklists\academic.yaml', '_internal\venues\registry.yaml', '_internal\paperrevamper\static\control-panel.html')) {
             if (-not (Test-Path (Join-Path (Split-Path $exe) $required))) { throw "Missing packaged data: $required" }
           }

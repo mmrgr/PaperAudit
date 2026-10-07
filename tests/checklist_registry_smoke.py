@@ -8,8 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from paperaudit.checklist import list_checklists, load, recommend_checklists, resolve_checklist  # noqa: E402
-from paperaudit.ingest import read_docx  # noqa: E402
+from paperrevamper.checklist import list_checklists, load, recommend_checklists, resolve_checklist  # noqa: E402
+from paperrevamper.ingest import read_docx  # noqa: E402
 
 
 def main() -> None:

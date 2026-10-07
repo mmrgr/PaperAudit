@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $Project = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Python = if ($PythonPath) { $PythonPath } elseif ($env:PAPERAUDIT_PYTHON) { $env:PAPERAUDIT_PYTHON } else { (Get-Command python -ErrorAction Stop).Source }
+$Python = if ($PythonPath) { $PythonPath } elseif ($env:PAPERREVAMPER_PYTHON) { $env:PAPERREVAMPER_PYTHON } elseif ($env:PAPERAUDIT_PYTHON) { $env:PAPERAUDIT_PYTHON } else { (Get-Command python -ErrorAction Stop).Source }
 if (-not (Test-Path -LiteralPath $Python)) { throw "Python interpreter not found: $Python" }
 $PythonVersion = (& $Python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
 if ($PythonVersion -notin @('3.11', '3.12', '3.13')) { throw "Unsupported Python $PythonVersion; use CPython 3.11, 3.12, or 3.13" }
@@ -35,23 +35,23 @@ if (Test-Path $BuildRequirements) {
 } else {
     & $Python -m pip install -e "$Project[pdf]"
 }
-if ($LASTEXITCODE -ne 0) { throw "PaperAudit dependency installation failed with exit code $LASTEXITCODE" }
+if ($LASTEXITCODE -ne 0) { throw "PaperRevamper dependency installation failed with exit code $LASTEXITCODE" }
 
-Copy-Item (Join-Path $Project 'ui\control-panel.html') (Join-Path $Project 'src\paperaudit\static\control-panel.html') -Force
+Copy-Item (Join-Path $Project 'ui\control-panel.html') (Join-Path $Project 'src\paperrevamper\static\control-panel.html') -Force
 Remove-Item (Join-Path $Project 'build\pyinstaller') -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item (Join-Path $Dist 'PaperAudit') -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $Dist 'PaperRevamper') -Recurse -Force -ErrorAction SilentlyContinue
 
 $args = @(
-    '--noconfirm', '--clean', '--name', 'PaperAudit', '--paths', (Join-Path $Project 'src'),
+    '--noconfirm', '--clean', '--name', 'PaperRevamper', '--paths', (Join-Path $Project 'src'),
     '--add-data', "$(Join-Path $Project 'checklists');checklists",
     '--add-data', "$(Join-Path $Project 'venues');venues",
-    '--add-data', "$(Join-Path $Project 'src\paperaudit\static');paperaudit/static",
-    '--collect-submodules', 'paperaudit',
+    '--add-data', "$(Join-Path $Project 'src\paperrevamper\static');paperrevamper/static",
+    '--collect-submodules', 'paperrevamper',
     '--collect-all', 'docx', '--collect-all', 'lxml', '--collect-all', 'yaml', '--collect-all', 'pdfplumber',
     '--distpath', $Dist, '--workpath', $Work, '--specpath', $Work
 )
 if ($Mode -eq 'onefile') { $args += '--onefile' } else { $args += '--onedir' }
-$args += (Join-Path $Project 'src\paperaudit\desktop.py')
+$args += (Join-Path $Project 'src\paperrevamper\desktop.py')
 
 Push-Location $Project
 try {
@@ -61,15 +61,15 @@ try {
     Pop-Location
 }
 
-$exe = if ($Mode -eq 'onefile') { Join-Path $Dist 'PaperAudit.exe' } else { Join-Path $Dist 'PaperAudit\PaperAudit.exe' }
+$exe = if ($Mode -eq 'onefile') { Join-Path $Dist 'PaperRevamper.exe' } else { Join-Path $Dist 'PaperRevamper\PaperRevamper.exe' }
 
 # PyInstaller 6.22 can leave base_library.zip in the work directory when
 # building an onedir app with the current bundled Python.  The bootloader
 # needs this archive beside the collected binaries, otherwise the directory
 # build fails before importing the encodings package.
 if ($Mode -eq 'onedir') {
-    $baseLibrary = Join-Path $Work 'PaperAudit\base_library.zip'
-    $internalDir = Join-Path $Dist 'PaperAudit\_internal'
+    $baseLibrary = Join-Path $Work 'PaperRevamper\base_library.zip'
+    $internalDir = Join-Path $Dist 'PaperRevamper\_internal'
     if ((Test-Path $baseLibrary) -and (Test-Path $internalDir)) {
         Copy-Item $baseLibrary (Join-Path $internalDir 'base_library.zip') -Force
     }

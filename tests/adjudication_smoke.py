@@ -10,8 +10,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from paperaudit.panel_state import build_state
-from paperaudit.protocol.adjudication import aggregate_panel, adjudicate_run, to_markdown
+from paperrevamper.panel_state import build_state
+from paperrevamper.protocol.adjudication import aggregate_panel, adjudicate_run, to_markdown
 
 
 def _judgment(finding_id: str, model: str, position: str, verdict: str) -> dict:

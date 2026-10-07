@@ -8,8 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from paperaudit.evidence.numeric_facts import check, extract_facts  # noqa: E402
-from paperaudit.models import Block, BlockKind, DocumentIR, IssueType  # noqa: E402
+from paperrevamper.evidence.numeric_facts import check, extract_facts  # noqa: E402
+from paperrevamper.models import Block, BlockKind, DocumentIR, IssueType  # noqa: E402
 
 
 def main() -> None:

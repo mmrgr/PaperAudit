@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from paperaudit.jobs import JobManager  # noqa: E402
+from paperrevamper.jobs import JobManager  # noqa: E402
 
 
 def wait_for(manager: JobManager, job_id: str, statuses: set[str]) -> dict:
@@ -44,7 +44,31 @@ def main() -> None:
         restarted = JobManager()
         restarted.register_root(root)
         assert restarted.get(job_id)["status"] == "completed"
-        hidden = root / "nested" / "deeper" / ".paperaudit" / "jobs"
+        legacy_run = root / "legacy"
+        legacy_dir = legacy_run / ".paperaudit" / "jobs"
+        legacy_dir.mkdir(parents=True)
+        legacy_id = "legacy123456"
+        (legacy_dir / f"{legacy_id}.json").write_text(
+            json.dumps(
+                {
+                    "job_id": legacy_id,
+                    "kind": "test",
+                    "run_dir": str(legacy_run),
+                    "status": "completed",
+                    "stage": "complete",
+                    "message": "旧项目任务",
+                    "progress": 100,
+                    "started_at": "2026-01-01T00:00:00+00:00",
+                    "finished_at": "2026-01-01T00:00:01+00:00",
+                    "result": "legacy",
+                    "error": None,
+                    "payload": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert restarted.get(legacy_id)["result"] == "legacy"
+        hidden = root / "nested" / "deeper" / ".paperrevamper" / "jobs"
         hidden.mkdir(parents=True)
         (hidden / "unrelated.json").write_text(json.dumps({"job_id": "unrelated"}), encoding="utf-8")
         assert not any(item["job_id"] == "unrelated" for item in restarted.list_jobs(root))
@@ -60,7 +84,7 @@ def main() -> None:
         assert wait_for(manager, cancel_id, {"cancelled"})["status"] == "cancelled"
 
         recover_run = root / "recover"
-        recover_dir = recover_run / ".paperaudit" / "jobs"
+        recover_dir = recover_run / ".paperrevamper" / "jobs"
         recover_dir.mkdir(parents=True)
         recover_id = "recover123456"
         (recover_dir / f"{recover_id}.json").write_text(

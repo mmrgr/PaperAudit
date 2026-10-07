@@ -62,7 +62,7 @@ def main() -> int:
         port = probe.getsockname()[1]
     base = f"http://127.0.0.1:{port}"
     proc = subprocess.Popen(
-        [py, "-m", "paperaudit.cli", "panel", "--run-root", str(run_root), "--port", str(port)],
+        [py, "-m", "paperrevamper.cli", "panel", "--run-root", str(run_root), "--port", str(port)],
         cwd=project,
         env=env,
         stdout=subprocess.PIPE,
@@ -102,7 +102,7 @@ def main() -> int:
         assert methods_role["position"] == {"x": 460, "y": 90}
         assert validated["workflow"]["feedback_edges"] == [{"source": "verify", "target": "review:argument_reviewer", "max_iterations": 2}]
         assert validated["workflow"]["canvas"]["start"]["label"] == "自定义入口"
-        plan = __import__("paperaudit.collaboration", fromlist=["build_plan"]).build_plan("paper", {"groups": [{"id": "method"}, {"id": "argument"}]}, validated["workflow"])
+        plan = __import__("paperrevamper.collaboration", fromlist=["build_plan"]).build_plan("paper", {"groups": [{"id": "method"}, {"id": "argument"}]}, validated["workflow"])
         assert next(task for task in plan["tasks"] if task["id"] == "review:method_data_reviewer")["depends_on"] == ["review:argument_reviewer"]
         methods_task = next(task for task in plan["tasks"] if task["id"] == "review:methods_gate")
         assert methods_task["depends_on"] == ["review:argument_reviewer", "review:method_data_reviewer"]

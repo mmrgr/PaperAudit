@@ -1,13 +1,13 @@
-# PaperAudit Windows 桌面版
+# PaperRevamper Windows 桌面版
 
 ## 两个功能区
 
-同一个 `PaperAudit.exe` 内提供两个功能区：
+同一个 `PaperRevamper.exe` 内提供两个功能区：
 
 1. **论文审查**：选择 DOCX，生成审查包，查看确定性检查和 Agent 意见，执行 verify、作者决定和副本修改回归。
 2. **多 Agent 工作流**：新增/删除/停用 Agent，设置顺序、提示词、普通依赖、起始/末尾节点和有次数上限的反馈回流；配置主流模型 API、OpenAI 兼容 API 或保留 WorkBuddy/Codex 宿主通道。
 
-顶部导航可以在两个功能区之间切换。运行目录默认写入 `%LOCALAPPDATA%\PaperAudit\runs`，不会写入安装目录或临时解压目录。
+顶部导航可以在两个功能区之间切换。运行目录默认写入 `%LOCALAPPDATA%\PaperRevamper\runs`，不会写入安装目录或临时解压目录。
 
 ## 构建
 
@@ -21,7 +21,7 @@
 .\build_exe.ps1 -Mode onedir
 ```
 
-交付文件为 `dist\PaperAudit\PaperAudit.exe`。确认 onedir 版本可用后，可以构建单文件版本：
+交付文件为 `dist\PaperRevamper\PaperRevamper.exe`。确认 onedir 版本可用后，可以构建单文件版本：
 
 ```powershell
 .\build_exe.ps1 -Mode onefile

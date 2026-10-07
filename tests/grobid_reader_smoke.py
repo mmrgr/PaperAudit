@@ -10,8 +10,8 @@ from xml.etree import ElementTree as ET
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from paperaudit.ingest.grobid_reader import _tei_to_ir, read_grobid_tei
-from paperaudit.evidence.privacy import check as privacy_check
+from paperrevamper.ingest.grobid_reader import _tei_to_ir, read_grobid_tei
+from paperrevamper.evidence.privacy import check as privacy_check
 
 
 def main() -> int:

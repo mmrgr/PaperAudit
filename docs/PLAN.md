@@ -1,4 +1,4 @@
-# PaperAudit 设计方案
+# PaperRevamper 设计方案
 
 > 多智能体论文审查与修订运行时 —— 结构对标 DelphiOpt，目标为工程可用，且相对单次 LLM 调用有可验证的质量提升。
 
@@ -10,14 +10,14 @@
 
 ## 0. 一句话定位
 
-**PaperAudit 是一个「可验证的论文审查流水线」，不是"多智能体辩论生成评审意见"。**
+**PaperRevamper 是一个「可验证的论文审查流水线」，不是"多智能体辩论生成评审意见"。**
 
 它的核心主张不是"我们让多个 Agent 讨论"，而是：
 
 > **审查质量的上限由「能否把一条意见变成可判定的验证任务」决定，而不是由 Agent 数量决定。**
 > 因此，我们把审查拆成**发现（生成）**与**裁决（验证）**两个解耦的阶段，只在有裁决器的地方才允许结论落地，其余一律降级为"建议/存疑"。
 
-这是与 DelphiOpt 方法论上的一脉相承：DelphiOpt 只回写通过**正确性门禁 + 重复性能门禁**的补丁；PaperAudit 只输出通过**证据门禁 + 裁决门禁**的意见。
+这是与 DelphiOpt 方法论上的一脉相承：DelphiOpt 只回写通过**正确性门禁 + 重复性能门禁**的补丁；PaperRevamper 只输出通过**证据门禁 + 裁决门禁**的意见。
 
 ---
 
@@ -84,7 +84,7 @@
 
 保留令人熟悉的心智模型，降低理解成本；差异处标注为什么不照搬。
 
-| DelphiOpt | PaperAudit | 说明 |
+| DelphiOpt | PaperRevamper | 说明 |
 |---|---|---|
 | `optimize` | `audit` | 主命令 |
 | 项目快照 snapshot | 稿件快照（分块 + 稳定 ID） | **新增：分块是核心资产**，所有证据定位依赖它 |
@@ -161,8 +161,8 @@ flowchart TD
 ## 4. 目录结构
 
 ```
-PaperAudit/
-├─ src/paperaudit/
+PaperRevamper/
+├─ src/paperrevamper/
 │  ├─ models.py          # Document/Block/Issue/Verdict/Budget/Checklist 等类型化模型
 │  ├─ ingest.py          # PDF/LaTeX/DOCX/MD 解析 → 稳定块 ID
 │  ├─ chunking.py        # 分块策略、块 ID 生成与稳定性保证
@@ -184,7 +184,7 @@ PaperAudit/
 │  ├─ provenance.py      # 证据链：引文锚点、匹配校验、可追溯
 │  ├─ telemetry.py       # JSONL/SQLite 轨迹
 │  ├─ reporting.py       # HTML 报告（含覆盖率面板）
-│  └─ cli.py             # paperaudit audit|inspect|report|reproduce|checklists
+│  └─ cli.py             # paperrevamper audit|inspect|report|reproduce|checklists
 ├─ checklists/           # ★ 显式清单（一等公民）
 │  ├─ general.yaml       #   通用（清晰度/结构/可复现性）
 │  ├─ statistics.yaml    #   统计报告规范（含 p 值、效应量、多重比较）
@@ -286,8 +286,8 @@ PaperAudit/
 | `single_pass_strong` | 一次调用，但允许用最强的单模型（花光预算） |
 | `self_refine` | 同一模型多轮自我精炼（**预期无效，作为对照**，见 RefineBench） |
 | `multi_agent_debate` | 多 Agent 互相看答案讨论（**预期有害或无效**） |
-| `paperaudit_shallow` | 本方案，仅 Stage 1（发现） |
-| `paperaudit_full` | 本方案，完整流水线 |
+| `paperrevamper_shallow` | 本方案，仅 Stage 1（发现） |
+| `paperrevamper_full` | 本方案，完整流水线 |
 
 ### 6.3 指标
 

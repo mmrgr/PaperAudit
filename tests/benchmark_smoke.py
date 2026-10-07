@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from paperaudit.benchmark import _score, render_markdown, run_benchmark
+from paperrevamper.benchmark import _score, render_markdown, run_benchmark
 
 
 def main() -> int:

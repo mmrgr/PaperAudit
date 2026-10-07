@@ -1,6 +1,6 @@
 {
   "version": "benchmark-v1",
-  "name": "PaperAudit deterministic smoke corpus",
+  "name": "PaperRevamper deterministic smoke corpus",
   "cases": [
     {
       "id": "structure-required-sections",

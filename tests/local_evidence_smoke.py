@@ -9,8 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from paperaudit.citations import CitationRecord, LocalEvidenceFetcher, audit_document
-from paperaudit.models import Block, BlockKind, CitationEntry, CitationMark, DocumentIR
+from paperrevamper.citations import CitationRecord, LocalEvidenceFetcher, audit_document
+from paperrevamper.models import Block, BlockKind, CitationEntry, CitationMark, DocumentIR
 
 
 def main() -> int:

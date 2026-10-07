@@ -13,13 +13,13 @@ from docx import Document
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from paperaudit.evidence.privacy import check
-from paperaudit.ingest import read_docx
-from paperaudit.models import IssueType
+from paperrevamper.evidence.privacy import check
+from paperrevamper.ingest import read_docx
+from paperrevamper.models import IssueType
 
 
 def main() -> None:
-    with tempfile.TemporaryDirectory(prefix="paperaudit-privacy-") as raw:
+    with tempfile.TemporaryDirectory(prefix="paperrevamper-privacy-") as raw:
         path = Path(raw) / "paper.docx"
         document = Document()
         document.core_properties.author = "Alice Example"

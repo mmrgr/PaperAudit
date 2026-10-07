@@ -1,14 +1,14 @@
-# PaperAudit
+# PaperRevamper
 
-**PaperAudit — Evidence-grounded pre-submission verifier for research manuscripts。** 输入 Word、文本型 PDF 或 GROBID TEI，输出可逐条核查的问题清单，并在你确认后于 DOCX 副本上安全改写。
+**PaperRevamper — Evidence-grounded pre-submission verifier for research manuscripts。** 输入 Word、文本型 PDF 或 GROBID TEI，输出可逐条核查的问题清单，并在你确认后于 DOCX 副本上安全改写。
 
 ## 核心分工
 
-PaperAudit 默认由**宿主 agent（WorkBuddy / Codex）协调多个学术审查角色**，也支持在控制面板中配置 OpenAI、Anthropic、Gemini、DeepSeek、通义、智谱、Moonshot 及任意 OpenAI 兼容 API 做单次调用或后续 Agent 扩展。项目始终负责可复核的解析、证据门禁和报告。
+PaperRevamper 默认由**宿主 agent（WorkBuddy / Codex）协调多个学术审查角色**，也支持在控制面板中配置 OpenAI、Anthropic、Gemini、DeepSeek、通义、智谱、Moonshot 及任意 OpenAI 兼容 API 做单次调用或后续 Agent 扩展。项目始终负责可复核的解析、证据门禁和报告。
 
 | 谁 | 做什么 |
 |---|---|
-| **PaperAudit** | 解析、定位、清单、证据门禁、改写执行、回归复验 |
+| **PaperRevamper** | 解析、定位、清单、证据门禁、改写执行、回归复验 |
 | **宿主 agent / 可选模型 API** | 按顺序号执行语义审查，同序 Agent 并行并回填结构化结果；可配置 API 用于连接测试和直接调用 |
 | **你** | 勾选要改哪些 |
 
@@ -24,7 +24,11 @@ pip install -e .
 pip install -e ".[pdf]"
 ```
 
-> Scripts 目录通常不在 PATH，因此**用 `python -m paperaudit.cli`，不要用裸 `paperaudit` 命令**。
+> Scripts 目录通常不在 PATH，因此**用 `python -m paperrevamper.cli`，不要用裸 `paperrevamper` 命令**。
+
+### 改名兼容
+
+项目现名为 **PaperRevamper**，Python 包和命令也使用 `paperrevamper`。升级时会继续读取旧版的 `out/paperaudit-llm.json`、`.paperaudit/jobs/`、旧 Windows 运行目录以及旧面板令牌名称；新任务和新配置使用 `paperrevamper` 名称。Windows DPAPI 密钥格式保持兼容，已有 API Key 不需要重新录入。
 
 ---
 
@@ -32,27 +36,27 @@ pip install -e ".[pdf]"
 
 ```bash
 # 1. 解析 → 审查包（清单 + 分章节原文）
-python -m paperaudit.cli prepare 论文.docx --out ./run/
-# PDF 也可直接 prepare；需要先安装 paperaudit[pdf]
-# python -m paperaudit.cli prepare 论文.pdf --out ./run/
+python -m paperrevamper.cli prepare 论文.docx --out ./run/
+# PDF 也可直接 prepare；需要先安装 paperrevamper[pdf]
+# python -m paperrevamper.cli prepare 论文.pdf --out ./run/
 # 可选：使用本机 GROBID 服务解析 PDF（保留 TEI 的页码/坐标）
-# python -m paperaudit.cli prepare 论文.pdf --out ./grobid-run/ --pdf-parser grobid --grobid-endpoint http://127.0.0.1:8070/api/processFulltextDocument
+# python -m paperrevamper.cli prepare 论文.pdf --out ./grobid-run/ --pdf-parser grobid --grobid-endpoint http://127.0.0.1:8070/api/processFulltextDocument
 # 也可以直接审查已经保存的 GROBID TEI XML
-# python -m paperaudit.cli check paper.tei.xml
+# python -m paperrevamper.cli check paper.tei.xml
 
 # 2. 多 Agent 读 run/context/sec_*.md，按角色回填 findings.<role>.json
 
 # 3. 证据门禁 → 去重 → 排序 → 报告
-python -m paperaudit.cli verify ./run/
+python -m paperrevamper.cli verify ./run/
 
-# 也可以显式选择模型 profile 由 PaperAudit 执行角色（推荐 API Key 通过环境变量）
-# python -m paperaudit.cli run-review ./run/ --config ./out/paperaudit-llm.json --profile openai
+# 也可以显式选择模型 profile 由 PaperRevamper 执行角色（推荐 API Key 通过环境变量）
+# python -m paperrevamper.cli run-review ./run/ --config ./out/paperrevamper-llm.json --profile openai
 
 # 可选：聚合两个独立 judge model 的 claim-first/evidence-first 双位置裁决
 # judgments.json 需包含 finding_id、judge_model、position、verdict(yes/no/cannot_assess)
-# python -m paperaudit.cli adjudicate ./run/ --judgments ./judgments.json
+# python -m paperrevamper.cli adjudicate ./run/ --judgments ./judgments.json
 # 也可以显式调用已配置的多个 provider，自动执行两种位置并写入 checkpoint
-# python -m paperaudit.cli run-panel ./run/ --profiles openai deepseek --config ./out/paperaudit-llm.json
+# python -m paperrevamper.cli run-panel ./run/ --profiles openai deepseek --config ./out/paperrevamper-llm.json
 # 若上次运行中断，默认从 review.runtime.json checkpoint 继续；--fresh 强制全部重跑
 
 # 配置也可以由面板保存，或手写最小 JSON，并设置 OPENAI_API_KEY：
@@ -60,28 +64,28 @@ python -m paperaudit.cli verify ./run/
 
 # 4. 确认后改写（输出到新文件，自动备份，原文件不动）
 # 先生成只读 EditProposal/冲突预览（不会修改 DOCX）
-python -m paperaudit.cli plan-revision 论文.docx --run-dir ./run/ --findings F003,F007 --format markdown
+python -m paperrevamper.cli plan-revision 论文.docx --run-dir ./run/ --findings F003,F007 --format markdown
 # 用户确认后再应用
-python -m paperaudit.cli apply 论文.docx --run-dir ./run/ --findings F003,F007
+python -m paperrevamper.cli apply 论文.docx --run-dir ./run/ --findings F003,F007
 
 # 可选：引用完整性审计（默认离线；只有 --online 才访问公共元数据服务）
-python -m paperaudit.cli citation-integrity 论文.docx --format markdown
-python -m paperaudit.cli citation-integrity 论文.docx --online --provider both --cache ./out/citations-cache.json
+python -m paperrevamper.cli citation-integrity 论文.docx --format markdown
+python -m paperrevamper.cli citation-integrity 论文.docx --online --provider both --cache ./out/citations-cache.json
 # CI 门禁：命中状态时返回退出码 1
-python -m paperaudit.cli citation-integrity 论文.docx --fail-on mismatch --fail-on retracted --fail-on unresolved
+python -m paperrevamper.cli citation-integrity 论文.docx --fail-on mismatch --fail-on retracted --fail-on unresolved
 
 # 清单注册表：查看可用清单，或按文档类型给出推荐顺序
-python -m paperaudit.cli list-checklists
-python -m paperaudit.cli list-checklists --recommend 论文.docx --format json
+python -m paperrevamper.cli list-checklists
+python -m paperrevamper.cli list-checklists --recommend 论文.docx --format json
 
 # 投稿配置：只执行配置中明确声明的章节门禁，并把配置快照写入 run
-python -m paperaudit.cli list-venues
-python -m paperaudit.cli prepare 论文.docx --out ./run/ --venue generic
+python -m paperrevamper.cli list-venues
+python -m paperrevamper.cli prepare 论文.docx --out ./run/ --venue generic
 # 会议/期刊规则应先保存为经过审核的 venue YAML，再显式传入：
-# python -m paperaudit.cli prepare 论文.docx --out ./run/ --venue ./venue.yaml
+# python -m paperrevamper.cli prepare 论文.docx --out ./run/ --venue ./venue.yaml
 
 # 本地标注语料回归：输出 precision / recall / F1
-python -m paperaudit.cli benchmark benchmarks/smoke.json --format markdown --fail-under 1
+python -m paperrevamper.cli benchmark benchmarks/smoke.json --format markdown --fail-under 1
 ```
 
 `prepare` 会生成 `collaboration.plan.json` 和 `collaboration.md`。宿主按顺序号运行多个独立角色：默认四个角色都是顺序 1，因此并行执行；可以把某个角色改为顺序 2、3……让它依次执行。各角色分别输出 `findings.<role>.json`，所有结果随后由代码统一做证据门禁和保守去重。旧的裁决输出文件仍可被历史运行读取。`--venue` 使用配置驱动的投稿模式：配置中的 `required_sections` 会生成确定性章节缺失 finding，原始配置会保存为 `venue.profile.json`；内置配置只是模板，不声称替代官方 author guidelines。
@@ -91,20 +95,20 @@ python -m paperaudit.cli benchmark benchmarks/smoke.json --format markdown --fai
 不需要逐行修改 JSON 或代码时，可以启动本地控制面板：
 
 ```text
-python -m paperaudit.cli panel --run-root out/panel-runs --open
+python -m paperrevamper.cli panel --run-root out/panel-runs --open
 ```
 
 面板默认只绑定本机地址。若确需局域网访问，必须显式开启并设置令牌；浏览器打开启动日志中的带令牌地址：
 
 ```powershell
-python -m paperaudit.cli panel --host 0.0.0.0 --allow-remote --auth-token "替换为长随机令牌" --open
+python -m paperrevamper.cli panel --host 0.0.0.0 --allow-remote --auth-token "替换为长随机令牌" --open
 ```
 
-远程模式下 API 请求必须带 `X-PaperAudit-Token` 或有效的 HttpOnly Cookie；首次打开可使用启动日志中的带令牌地址完成 bootstrap，浏览器随后会移除地址栏中的 query token。这样可以避免把本机文档、模型配置和修改接口无认证暴露到网络。
+远程模式下 API 请求必须带 `X-PaperRevamper-Token` 或有效的 HttpOnly Cookie；首次打开可使用启动日志中的带令牌地址完成 bootstrap，浏览器随后会移除地址栏中的 query token。这样可以避免把本机文档、模型配置和修改接口无认证暴露到网络。
 
 面板提供论文路径和审查包创建、PDF 原生/GROBID 解析器选择、阶段图、角色 skill 和任务提示、证据意见筛选、`accept / reject / contest` 决策、双位置 Panel 裁决、源文件 hash 复核、EditProposal 修订计划预览、副本修改、备份、回归结果和 trace 时间线。默认由宿主 Agent 执行审查角色；需要直接调用已配置模型时使用 `run-review`，需要 provider-backed 双位置裁决时使用 `run-panel` 或面板中的“模型 Panel”按钮。每个模型/位置任务会单独保存响应和 hash，`panel.runtime.json` 支持中断恢复，确定性 `adjudicate` 只聚合完整判断，不把缺失结果当作支持。Windows 上通过面板保存的 API Key 使用当前用户 DPAPI 加密，配置文件不会保存明文密钥；跨平台环境建议使用 `api_key_env`。
 
-解析、验证、副本修改和直接模型审查任务会把状态持久化到运行目录下的 `.paperaudit/jobs/`；模型角色另写入 `review.runtime.json`，按 plan/profile 指纹逐角色 checkpoint。服务重启后未完成任务会标记为 `interrupted`，面板可协作取消正在运行的任务，并在重新校验输入后恢复可恢复任务。
+解析、验证、副本修改和直接模型审查任务会把状态持久化到运行目录下的 `.paperrevamper/jobs/`；模型角色另写入 `review.runtime.json`，按 plan/profile 指纹逐角色 checkpoint。服务重启后未完成任务会标记为 `interrupted`，面板可协作取消正在运行的任务，并在重新校验输入后恢复可恢复任务。
 
 “流程编排”区域还可以新增、停用或删除 Agent，修改角色名称、提示词、skills、清单组和执行顺序。顺序号从小到大依次执行，同一顺序号并行。通过“验证流程”和“保存流程”后，下一次审查包会生成新的 `collaboration.plan.json`；已有运行目录保持不可变。命令行也支持：
 
@@ -115,7 +119,7 @@ python -m paperaudit.cli panel --host 0.0.0.0 --allow-remote --auth-token "替�
 控制面板会异步执行解析、验证和副本修改，并实时显示“正在执行……”阶段、进度百分比和失败原因；过程同时写入 `trace.jsonl`。工作流页的“模型与调用通道”可以保存多个提供商配置、使用环境变量引用密钥、测试连接、删除自定义配置，并保留 WorkBuddy / Codex 宿主通道。`max_output_tokens` 会映射到 Anthropic 的 `max_tokens`、Gemini 的 `generationConfig.maxOutputTokens`；OpenAI 兼容 API 默认发送 `max_tokens`，可按服务改为 `max_completion_tokens` 或关闭该字段。
 
 ```text
-python -m paperaudit.cli prepare 论文.docx --out run --workflow workflow.json
+python -m paperrevamper.cli prepare 论文.docx --out run --workflow workflow.json
 ```
 
 ### 第 1 步产物
@@ -173,7 +177,7 @@ DOCX 解析还会读取 `word/footnotes.xml` 和 `word/endnotes.xml` 中的正�
 
 `checklists/registry.yaml` 是清单注册表；当前内置通用 `academic` 清单（8 组 40 项），并提供 PRISMA、STROBE、CONSORT 三个标记为 advisory 的研究设计精简包。推荐只定位候选项，不声称替代官方完整指南：
 
-`venues/registry.yaml` 是投稿配置注册表。配置可以指定清单、必需章节和停止条件；使用 `--venue-registry` 可指向团队审核过的本地版本。PaperAudit 只执行配置中明确的机械门禁，不会把模板推断成期刊官方要求。
+`venues/registry.yaml` 是投稿配置注册表。配置可以指定清单、必需章节和停止条件；使用 `--venue-registry` 可指向团队审核过的本地版本。PaperRevamper 只执行配置中明确的机械门禁，不会把模板推断成期刊官方要求。
 
 | 组 | 项数 | 覆盖 |
 |---|---|---|
@@ -196,9 +200,9 @@ DOCX 解析还会读取 `word/footnotes.xml` 和 `word/endnotes.xml` 中的正�
 不需要宿主参与，单独跑机械检查：
 
 ```bash
-python -m paperaudit.cli check 论文.docx
-python -m paperaudit.cli check 论文.docx --format json
-python -m paperaudit.cli check a.docx b.docx --out ./out/   # 多篇串行
+python -m paperrevamper.cli check 论文.docx
+python -m paperrevamper.cli check 论文.docx --format json
+python -m paperrevamper.cli check a.docx b.docx --out ./out/   # 多篇串行
 ```
 
 ### 原生 PDF 审查（可选依赖）
@@ -207,8 +211,8 @@ python -m paperaudit.cli check a.docx b.docx --out ./out/   # 多篇串行
 
 ```powershell
 pip install -e ".[pdf]"
-python -m paperaudit.cli check 论文.pdf --out out/pdf/
-python -m paperaudit.cli prepare 论文.pdf --out out/pdf-run/
+python -m paperrevamper.cli check 论文.pdf --out out/pdf/
+python -m paperrevamper.cli prepare 论文.pdf --out out/pdf-run/
 ```
 
 原生适配器保留页码和 bounding box 锚点，并将可识别的表格作为 `TABLE` block 写入 `DocumentIR`；`ir_snapshot.json` 会保存这些几何信息。PDF 当前支持审查和报告，安全修订仍只对 DOCX 开放。若 PDF 没有可提取的文本层，工具会标记 `scan_likely` 并以非零状态退出，避免把“没有读到文字”误报成“没有问题”。复杂双栏阅读顺序、公式语义、扫描件 OCR、批注和完整视觉版式仍需专用解析器或 GROBID 增强。
@@ -221,7 +225,7 @@ python -m paperaudit.cli prepare 论文.pdf --out out/pdf-run/
 
 ## Windows 桌面版
 
-运行 `build_exe.ps1 -Mode onedir` 生成 `dist\PaperAudit\PaperAudit.exe`；`-Mode onefile` 生成单文件 `dist\PaperAudit.exe`。双击后会自动打开本地控制面板，顶部切换“论文审查”和“多 Agent 工作流”两个功能区。运行数据默认保存到 `%LOCALAPPDATA%\PaperAudit\runs`。完整说明见 [docs/EXE_RELEASE.md](docs/EXE_RELEASE.md)。
+运行 `build_exe.ps1 -Mode onedir` 生成 `dist\PaperRevamper\PaperRevamper.exe`；`-Mode onefile` 生成单文件 `dist\PaperRevamper.exe`。双击后会自动打开本地控制面板，顶部切换“论文审查”和“多 Agent 工作流”两个功能区。运行数据默认保存到 `%LOCALAPPDATA%\PaperRevamper\runs`。完整说明见 [docs/EXE_RELEASE.md](docs/EXE_RELEASE.md)。
 
 检测器：`citations` `crossref` `structure` `terminology` `numbers` `privacy`。
 
@@ -235,7 +239,7 @@ python -m paperaudit.cli prepare 论文.pdf --out out/pdf-run/
 
 `plan-revision` 是安全修订的只读阶段：它生成 `revision.plan.json` 和可读的 `revision.diff`，为每个 EditProposal 保存目标块、字符范围、`expected_old_text`、replacement、风险级别和冲突图。只有计划通过后，`apply` 才会在作者 accept 的 finding 上创建备份并写入新文件；多段替换、C 级实质改写、源 hash 变化和目标冲突会在计划阶段阻断。
 
-本地证据包也可以为每个 passage 写入 `source`、`locator`、`confidence`，例如 `{"doi:10.1234/x": [{"text": "...", "source": "local-paper", "locator": "p. 3", "confidence": 0.91}]}`；报告会同时保留 `evidence_passages`、`evidence_provenance` 和 `evidence_confidence`，避免把摘要、全文片段和作者提供的材料混成同一种证据。解析器给摘要/description/summary/snippet 设置 0.65/0.60/0.55/0.45 的保守先验；显式低置信度证据不会被词面重合直接升级为 `supported`。`--evidence` 也接受文本/Markdown/TEI 目录：文件名或前 8 KiB 中的 DOI、arXiv、PMID 用来建立关联，段落会按正文 claim 做可复现的词面排序，定位保留为 `相对路径#pN`。目录检索完全离线，不会把未标识的文档推断成某条引用的证据。例如：`python -m paperaudit.cli citation-integrity 论文.docx --evidence .\evidence\`。
+本地证据包也可以为每个 passage 写入 `source`、`locator`、`confidence`，例如 `{"doi:10.1234/x": [{"text": "...", "source": "local-paper", "locator": "p. 3", "confidence": 0.91}]}`；报告会同时保留 `evidence_passages`、`evidence_provenance` 和 `evidence_confidence`，避免把摘要、全文片段和作者提供的材料混成同一种证据。解析器给摘要/description/summary/snippet 设置 0.65/0.60/0.55/0.45 的保守先验；显式低置信度证据不会被词面重合直接升级为 `supported`。`--evidence` 也接受文本/Markdown/TEI 目录：文件名或前 8 KiB 中的 DOI、arXiv、PMID 用来建立关联，段落会按正文 claim 做可复现的词面排序，定位保留为 `相对路径#pN`。目录检索完全离线，不会把未标识的文档推断成某条引用的证据。例如：`python -m paperrevamper.cli citation-integrity 论文.docx --evidence .\evidence\`。
 
 ### 确定性检查基准
 
@@ -281,14 +285,14 @@ python -m paperaudit.cli prepare 论文.pdf --out out/pdf-run/
 ## 与已有学术 skill 的关系
 
 `nature-citation`、`academic-humanizer`、`nature-polishing` 等都是**生成型**的，
-PaperAudit 是**验证型**的 —— 叠加而非竞争：
+PaperRevamper 是**验证型**的 —— 叠加而非竞争：
 
 ```
-PaperAudit prepare（找问题）
+PaperRevamper prepare（找问题）
       ↓
 academic-humanizer（润色）
       ↓
-PaperAudit check（复验有没有改坏）
+PaperRevamper check（复验有没有改坏）
 ```
 
 ---
@@ -296,7 +300,7 @@ PaperAudit check（复验有没有改坏）
 ## 目录
 
 ```
-src/paperaudit/
+src/paperrevamper/
 ├─ models.py              核心 schema（块 ID 定位）
 ├─ ingest/docx_reader.py  DOCX → DocumentIR
 ├─ ingest/pdf_reader.py   PDF → page-aware DocumentIR（可选 pdfplumber）

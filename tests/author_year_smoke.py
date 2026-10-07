@@ -9,9 +9,9 @@ from docx import Document
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from paperaudit.evidence.citations import check as citation_check  # noqa: E402
-from paperaudit.ingest import read_docx  # noqa: E402
-from paperaudit.models import IssueType  # noqa: E402
+from paperrevamper.evidence.citations import check as citation_check  # noqa: E402
+from paperrevamper.ingest import read_docx  # noqa: E402
+from paperrevamper.models import IssueType  # noqa: E402
 
 
 def main() -> int:

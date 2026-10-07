@@ -1,4 +1,4 @@
-# PaperAudit 工作交接
+# PaperRevamper 工作交接
 
 > 供新窗口接续开发。最后更新：2026-10-06。
 
@@ -7,7 +7,7 @@
 | 项 | 路径 |
 |---|---|
 | **项目根目录** | `C:\Users\mmrgr\Desktop\论文\lwxm` |
-| 源码 | `<根>/src/paperaudit/` |
+| 源码 | `<根>/src/paperrevamper/` |
 | 审查清单 | `<根>/checklists/academic.yaml` |
 | Skill 源 | `<根>/skills/paper-audit/SKILL.md` |
 | 设计方案 | `<根>/docs/PLAN_v2.md`（现行）、`docs/PLAN.md`（v1 存档） |
@@ -21,19 +21,21 @@
 
 ⚠️ 改动 Skill 后记得**三处同步**，否则不同宿主行为不一致。
 
-本轮已同步项目版本元数据至 `0.2.0`（与 `src/paperaudit/__init__.py`、Skill 版本一致）。
+本轮已同步项目版本元数据至 `0.2.0`（与 `src/paperrevamper/__init__.py`、Skill 版本一致）。
+
+项目现名为 PaperRevamper，包名、CLI、桌面产物和仓库链接均已切换到新名称。为避免升级丢失已有数据，仍兼容读取旧的 `paperaudit` 配置/任务目录、面板令牌和 Windows DPAPI 密钥；新写入使用 `paperrevamper` 名称。
 
 ---
 
 ## 2. 环境（最重要的一条）
 
 ```bash
-python -m paperaudit.cli ...     # ✅ 正确
-paperaudit ...                   # ❌ 不可用！Scripts 不在 PATH
+python -m paperrevamper.cli ...     # ✅ 正确
+paperrevamper ...                   # ❌ 不可用！Scripts 不在 PATH
 ```
 
 - 宿主实际使用的 python：`C:\Users\mmrgr\.workbuddy\binaries\python\versions\3.13.12\python.exe`
-- paperaudit 已以 editable 方式装入该 python（指向 `src/`，改代码立即生效，无需重装）
+- paperrevamper 已以 editable 方式装入该 python（指向 `src/`，改代码立即生效，无需重装）
 - 依赖：`python-docx` 1.2.0、`PyYAML` 6.0.3；原生 PDF 可选 `pdfplumber`（`pip install -e ".[pdf]"`）
 - 重装：`cd <项目根> && pip install -e .`
 
@@ -43,11 +45,11 @@ paperaudit ...                   # ❌ 不可用！Scripts 不在 PATH
 
 ## 3. 架构：宿主协作式（核心决策，别推翻）
 
-**默认由宿主 agent 协调；PaperAudit 的确定性审查层不调外部 API。** 用户也可以通过显式 `run-review` profile 选择直接模型执行角色，结果仍必须进入同一套 JSON schema、证据门禁和 `verify`。
+**默认由宿主 agent 协调；PaperRevamper 的确定性审查层不调外部 API。** 用户也可以通过显式 `run-review` profile 选择直接模型执行角色，结果仍必须进入同一套 JSON schema、证据门禁和 `verify`。
 
 | 谁 | 做什么 |
 |---|---|
-| PaperAudit | 解析、定位、清单、证据门禁、改写执行、回归复验 |
+| PaperRevamper | 解析、定位、清单、证据门禁、改写执行、回归复验 |
 | 宿主 agent | 按清单做语义审查与判断 |
 | 用户 | 勾选改哪些 |
 
@@ -57,28 +59,28 @@ paperaudit ...                   # ❌ 不可用！Scripts 不在 PATH
 
 ```bash
 # 1 解析 → 审查包（清单 + 分章节原文，带块 ID 锚点）
-python -m paperaudit.cli prepare 论文.docx --out ./run/
+python -m paperrevamper.cli prepare 论文.docx --out ./run/
 
 # 2 宿主按 collaboration.plan.json 并行运行四个角色，分别回填 run/findings.<role>.json
 
 # 2b 按 `order` 顺序执行 Agent；同一 order 并行，分别写 run/findings.<role>.json
 
 # 3 证据门禁 + 合并确定性结果 + 排序 + 报告
-python -m paperaudit.cli verify ./run/
+python -m paperrevamper.cli verify ./run/
 
 # 4 确认后改写（新文件 + 备份 + 回归复验，原文件不动）
-python -m paperaudit.cli apply 论文.docx --run-dir ./run/ --findings '*'
+python -m paperrevamper.cli apply 论文.docx --run-dir ./run/ --findings '*'
 
 # 可选引用完整性审计；默认离线，--online 才访问公共元数据服务
-python -m paperaudit.cli citation-integrity 论文.docx --online --provider both --cache ./out/citations-cache.json
+python -m paperrevamper.cli citation-integrity 论文.docx --online --provider both --cache ./out/citations-cache.json
 
 # 确定性检查回归语料
-python -m paperaudit.cli benchmark benchmarks/smoke.json --fail-under 1
+python -m paperrevamper.cli benchmark benchmarks/smoke.json --fail-under 1
 ```
 
 另有一个独立命令 `check`（纯确定性检查，零 LLM，可进 CI）：
 ```bash
-python -m paperaudit.cli check a.docx b.docx --out ./out/   # 多篇串行
+python -m paperrevamper.cli check a.docx b.docx --out ./out/   # 多篇串行
 ```
 
 ### 模块
@@ -132,7 +134,7 @@ python -m paperaudit.cli check a.docx b.docx --out ./out/   # 多篇串行
 | 可移植审查包 | ✅ | `ir_snapshot.json` 保存解析 IR；源文件移动、删除或 hash 变化时 verify 使用快照 |
 | 引用完整性 v1 | ✅ | 离线保守解析 + 可选 Crossref/Semantic Scholar；DOI-less 条目支持保守 bibliographic search；输出 metadata/publication 状态、证据 provenance 与引用位置 |
 | 过程复盘 | ✅ | `docs/PROCESS_REVIEW_multiagent.md` 记录本轮 sol worker 规划、实施步骤和验证证据 |
-| 可视化修改控制面板 | ✅ | `paperaudit panel` + `src/paperaudit/panel.py` + `ui/control-panel.html`；支持状态、决策、证据和安全副本修改 |
+| 可视化修改控制面板 | ✅ | `paperrevamper panel` + `src/paperrevamper/panel.py` + `ui/control-panel.html`；支持状态、决策、证据和安全副本修改 |
 | 可编辑 Agent 工作流 | ✅ | 面板支持角色增删/启停、skills、清单组、并行组、提示词和任务依赖覆盖；`prepare --workflow` 可复用 JSON 配置 |
 | 清单注册表 | ✅ | `checklists/registry.yaml`、academic + PRISMA/STROBE/CONSORT advisory 包、别名解析与基于研究设计词的文档推荐；仍可传入外部 YAML |
 | 投稿配置模式 | ✅ | `venues/registry.yaml`、`list-venues`、`prepare --venue`；只执行显式 required_sections，保存 `venue.profile.json`；内置项是模板而非官方规则 |
@@ -147,7 +149,7 @@ python -m paperaudit.cli check a.docx b.docx --out ./out/   # 多篇串行
 | 发布与 CI 基础设施 | ✅ | MIT `LICENSE`、`CITATION.cff`、`CHANGELOG.md` 和 `.github/workflows/ci.yml`；统一 smoke 入口、三版本 Python + Windows 桌面包构建、wheel 构建 |
 | Gemini system prompt | ✅ | Gemini 适配器将 system 消息映射到 `systemInstruction`，不会丢失证据门禁约束 |
 | 控制面板远程访问保护 | ✅ | 非本机绑定必须显式 `--allow-remote` + `--auth-token`；API 校验 header/Cookie 令牌，启动 URL 只用于一次性 bootstrap |
-| 面板任务持久化与恢复 | ✅ | `.paperaudit/jobs/*.json`；重启标记 `interrupted`，支持取消和重新校验后恢复 |
+| 面板任务持久化与恢复 | ✅ | `.paperrevamper/jobs/*.json`；重启标记 `interrupted`，支持取消和重新校验后恢复 |
 
 清单 8 组 40 项：structure(4) argument(6) method(6) data(5) citation(6) figure(4) language(5) consistency(4)。
 
@@ -190,16 +192,16 @@ python -m paperaudit.cli check a.docx b.docx --out ./out/   # 多篇串行
 ## 7. 复现验证的方式
 
 ```bash
-cd "C:\Users\mmrgr\WorkBuddy\2026-09-22-14-09-30\PaperAudit"
+cd "C:\Users\mmrgr\WorkBuddy\2026-09-22-14-09-30\PaperRevamper"
 PY="C:\Users\mmrgr\.workbuddy\binaries\python\versions\3.13.12\python.exe"
 
 # 确定性检查（用现有样本）
-"$PY" -m paperaudit.cli check tests/_tmp/seeded.docx
+"$PY" -m paperrevamper.cli check tests/_tmp/seeded.docx
 
 # 召回验证：注入 3 类缺陷，应全部命中
 # 需传入一份「干净」的 .docx 作为基准（注入脚本要求原文编号连续、结构完整）
 PYTHONPATH=src "$PY" tests/seeded_check.py <你的文档.docx>
-# 或：PAPERAUDIT_SAMPLE=<路径> PYTHONPATH=src "$PY" tests/seeded_check.py
+# 或：PAPERREVAMPER_SAMPLE=<路径> PYTHONPATH=src "$PY" tests/seeded_check.py
 ```
 
 ⚠️ `tests/_tmp/seeded.docx` 是**已注入缺陷**的样本（缺 [5]、有图9-9、编号跳号），
@@ -209,7 +211,7 @@ PYTHONPATH=src "$PY" tests/seeded_check.py <你的文档.docx>
 
 ## 8. 与 DelphiOpt 的关系
 
-PaperAudit 结构对标用户的另一个项目 `mmrgr/DelphiOpt`（预算感知的多智能体代码优化运行时），继承了它的核心心法 **"LLM 提议，可执行的证据做决定"**，并做了两处关键改造：
+PaperRevamper 结构对标用户的另一个项目 `mmrgr/DelphiOpt`（预算感知的多智能体代码优化运行时），继承了它的核心心法 **"LLM 提议，可执行的证据做决定"**，并做了两处关键改造：
 
 1. 把"发现"与"裁决"解耦（论文没有客观门禁，不能照搬代码优化的接受判据）
 2. 不做预算系统（用户明确说先不做）
