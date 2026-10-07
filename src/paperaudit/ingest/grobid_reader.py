@@ -17,7 +17,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from paperaudit.models import Block, BlockKind, DocumentIR
-from paperaudit.llm import _validate_endpoint
+from paperaudit.llm import _safe_urlopen, _validate_endpoint
 
 from .docx_reader import _extract_citations, _extract_figures, _extract_numerics
 
@@ -54,7 +54,7 @@ def read_grobid(
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=max(0.5, float(timeout))) as response:
+        with _safe_urlopen(request, timeout=max(0.5, float(timeout))) as response:
             content = response.read()
     except (OSError, urllib.error.URLError) as exc:
         raise RuntimeError(f"GROBID 请求失败：{exc}") from exc

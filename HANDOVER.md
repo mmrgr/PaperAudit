@@ -146,7 +146,7 @@ python -m paperaudit.cli check a.docx b.docx --out ./out/   # 多篇串行
 | 模型密钥保护 | ✅ | Windows DPAPI 保存 `api_key_protected`，配置文件无明文 key；环境变量仍是跨平台推荐路径 |
 | 发布与 CI 基础设施 | ✅ | MIT `LICENSE`、`CITATION.cff`、`CHANGELOG.md` 和 `.github/workflows/ci.yml`；统一 smoke 入口、三版本 Python + Windows 桌面包构建、wheel 构建 |
 | Gemini system prompt | ✅ | Gemini 适配器将 system 消息映射到 `systemInstruction`，不会丢失证据门禁约束 |
-| 控制面板远程访问保护 | ✅ | 非本机绑定必须显式 `--allow-remote` + `--auth-token`；API 校验令牌，UI 从启动 URL 传递令牌 |
+| 控制面板远程访问保护 | ✅ | 非本机绑定必须显式 `--allow-remote` + `--auth-token`；API 校验 header/Cookie 令牌，启动 URL 只用于一次性 bootstrap |
 | 面板任务持久化与恢复 | ✅ | `.paperaudit/jobs/*.json`；重启标记 `interrupted`，支持取消和重新校验后恢复 |
 
 清单 8 组 40 项：structure(4) argument(6) method(6) data(5) citation(6) figure(4) language(5) consistency(4)。

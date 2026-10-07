@@ -21,6 +21,7 @@
 - `.github/workflows/ci.yml` 增加 Windows onedir 构建与 EXE `--help`/内置资源 smoke；`requirements-build.txt` 固定构建依赖，脚本限制 CPython 3.11–3.13。
 - jobs 恢复扫描改为运行根目录和其直接子目录，不再对用户数据做全树 `rglob`；runner 对截断/省略写入 trace 并在 prompt 中明确提示。
 - `venue.stop_criteria` 明确写入 `advisory`、未执行状态；章节缺失仍是独立的确定性检查。
+- 公网 HTTP endpoint 被拒绝；模型和 GROBID 请求禁止自动跟随 redirect；remote resume 重新校验 profile；三个 provider 的输出 token 字段统一有明确映射。
 
 **阶段门**：所有确定性回归通过；无跨版本决定误套；构建产物可在干净 Windows 环境启动。
 

@@ -100,7 +100,7 @@ python -m paperaudit.cli panel --run-root out/panel-runs --open
 python -m paperaudit.cli panel --host 0.0.0.0 --allow-remote --auth-token "替换为长随机令牌" --open
 ```
 
-远程模式下所有 API 请求都要求 `X-PaperAudit-Token`，避免把本机文档、模型配置和修改接口无认证暴露到网络。
+远程模式下 API 请求必须带 `X-PaperAudit-Token` 或有效的 HttpOnly Cookie；首次打开可使用启动日志中的带令牌地址完成 bootstrap，浏览器随后会移除地址栏中的 query token。这样可以避免把本机文档、模型配置和修改接口无认证暴露到网络。
 
 面板提供论文路径和审查包创建、PDF 原生/GROBID 解析器选择、阶段图、角色 skill 和任务提示、证据意见筛选、`accept / reject / contest` 决策、双位置 Panel 裁决、源文件 hash 复核、EditProposal 修订计划预览、副本修改、备份、回归结果和 trace 时间线。默认由宿主 Agent 执行审查角色；需要直接调用已配置模型时使用 `run-review`，需要 provider-backed 双位置裁决时使用 `run-panel` 或面板中的“模型 Panel”按钮。每个模型/位置任务会单独保存响应和 hash，`panel.runtime.json` 支持中断恢复，确定性 `adjudicate` 只聚合完整判断，不把缺失结果当作支持。Windows 上通过面板保存的 API Key 使用当前用户 DPAPI 加密，配置文件不会保存明文密钥；跨平台环境建议使用 `api_key_env`。
 
@@ -112,7 +112,7 @@ python -m paperaudit.cli panel --host 0.0.0.0 --allow-remote --auth-token "替�
 
 点击任意画布模块会打开设置面板：Agent 可修改名称、提示词、启用状态和执行顺序；起始节点和末尾报告节点也可修改名称、说明和位置。设置面板还可以给当前模块添加有最大次数的循环回流，例如把 `verify` 的结果送回某个 Agent 重做。循环回流保存在 `feedback_edges` 中，不会破坏一次性依赖图，由宿主按最大次数执行。
 
-控制面板会异步执行解析、验证和副本修改，并实时显示“正在执行……”阶段、进度百分比和失败原因；过程同时写入 `trace.jsonl`。工作流页的“模型与调用通道”可以保存多个提供商配置、使用环境变量引用密钥、测试连接、删除自定义配置，并保留 WorkBuddy / Codex 宿主通道。
+控制面板会异步执行解析、验证和副本修改，并实时显示“正在执行……”阶段、进度百分比和失败原因；过程同时写入 `trace.jsonl`。工作流页的“模型与调用通道”可以保存多个提供商配置、使用环境变量引用密钥、测试连接、删除自定义配置，并保留 WorkBuddy / Codex 宿主通道。`max_output_tokens` 会映射到 Anthropic 的 `max_tokens`、Gemini 的 `generationConfig.maxOutputTokens`；OpenAI 兼容 API 默认发送 `max_tokens`，可按服务改为 `max_completion_tokens` 或关闭该字段。
 
 ```text
 python -m paperaudit.cli prepare 论文.docx --out run --workflow workflow.json

@@ -34,6 +34,20 @@ DEFAULT_PROFILES = [
 
 _DEFAULT_MAX_OUTPUT_TOKENS = 4096
 _MAX_RESPONSE_BYTES = 4_000_000
+_OUTPUT_TOKEN_FIELDS = {"auto", "max_tokens", "max_completion_tokens", "none"}
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Keep provider requests on the endpoint that passed validation."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: N802
+        raise urllib.error.HTTPError(req.full_url, code, msg, headers, fp)
+
+
+def _safe_urlopen(request: urllib.request.Request, *, timeout: float):
+    """Open one already-validated request without following redirects."""
+
+    return urllib.request.build_opener(_NoRedirectHandler).open(request, timeout=timeout)
 
 
 def _default_config() -> dict[str, Any]:
@@ -46,6 +60,11 @@ def _normalise_max_output(value: Any) -> int:
     except (TypeError, ValueError):
         parsed = _DEFAULT_MAX_OUTPUT_TOKENS
     return max(256, min(16_384, parsed))
+
+
+def _normalise_output_token_field(value: Any) -> str:
+    field = str(value or "auto").strip().casefold()
+    return field if field in _OUTPUT_TOKEN_FIELDS else "auto"
 
 
 def _normalise_profile(raw: dict[str, Any]) -> dict[str, Any]:
@@ -61,6 +80,7 @@ def _normalise_profile(raw: dict[str, Any]) -> dict[str, Any]:
         "api_key_status": str(raw.get("api_key_status", "")),
         "enabled": raw.get("enabled", True) is not False,
         "max_output_tokens": _normalise_max_output(raw.get("max_output_tokens", _DEFAULT_MAX_OUTPUT_TOKENS)),
+        "output_token_field": _normalise_output_token_field(raw.get("output_token_field", "auto")),
     }
     if profile["protocol"] not in {"host_agent", "openai_compatible", "anthropic", "gemini"}:
         profile["protocol"] = "openai_compatible"
@@ -208,7 +228,7 @@ def _request(url: str, headers: dict[str, str], payload: dict[str, Any], timeout
     _validate_endpoint(url)
     request = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers={"Content-Type": "application/json", **headers}, method="POST")
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with _safe_urlopen(request, timeout=timeout) as response:
             body = response.read(_MAX_RESPONSE_BYTES + 1)
             if len(body) > _MAX_RESPONSE_BYTES:
                 raise RuntimeError(f"模型 API 响应超过 {_MAX_RESPONSE_BYTES} 字节上限")
@@ -226,7 +246,11 @@ def _request(url: str, headers: dict[str, str], payload: dict[str, Any], timeout
 def _openai_compatible(profile: dict[str, Any], key: str, model: str, messages: list[dict[str, str]], timeout: int) -> dict[str, Any]:
     base = str(profile.get("base_url", "")).rstrip("/")
     url = base if base.endswith("/chat/completions") else f"{base}/chat/completions"
-    data = _request(url, {"Authorization": f"Bearer {key}"}, {"model": model, "messages": messages, "temperature": 0.1}, timeout)
+    payload: dict[str, Any] = {"model": model, "messages": messages, "temperature": 0.1}
+    output_field = _normalise_output_token_field(profile.get("output_token_field", "auto"))
+    if output_field != "none":
+        payload["max_tokens" if output_field == "auto" else output_field] = _max_output_tokens(profile)
+    data = _request(url, {"Authorization": f"Bearer {key}"}, payload, timeout)
     choice = (data.get("choices") or [{}])[0]
     message = choice.get("message") or {}
     return {"status": "ok", "provider_response": data, "text": str(message.get("content", "")), "model": model}
@@ -274,6 +298,7 @@ def _validate_endpoint(url: str, *, allow_loopback: bool = True) -> None:
         addresses = {info[4][0] for info in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)}
     except OSError as exc:
         raise ValueError(f"endpoint 主机无法解析：{host}") from exc
+    has_non_loopback = False
     for raw in addresses:
         try:
             address = ipaddress.ip_address(raw.split("%", 1)[0])
@@ -283,8 +308,11 @@ def _validate_endpoint(url: str, *, allow_loopback: bool = True) -> None:
             if not allow_loopback:
                 raise ValueError("远程面板禁止访问 loopback endpoint")
             continue
+        has_non_loopback = True
         if address.is_private or address.is_link_local or address.is_multicast or address.is_reserved or address.is_unspecified:
             raise ValueError("endpoint 禁止访问本机或私有网络地址")
+    if parsed.scheme == "http" and has_non_loopback:
+        raise ValueError("公网 endpoint 必须使用 HTTPS；仅允许 loopback 使用 HTTP")
 
 
 def _gemini(profile: dict[str, Any], key: str, model: str, messages: list[dict[str, str]], timeout: int) -> dict[str, Any]:
@@ -297,6 +325,8 @@ def _gemini(profile: dict[str, Any], key: str, model: str, messages: list[dict[s
         # ordinary message role.  Dropping the system prompt would remove the
         # evidence-gate and privacy constraints from direct Gemini runs.
         payload["systemInstruction"] = {"parts": [{"text": system}]}
+    if _normalise_output_token_field(profile.get("output_token_field", "auto")) != "none":
+        payload["generationConfig"] = {"maxOutputTokens": _max_output_tokens(profile)}
     # Keep the API key out of the request URL so proxies and access logs do not
     # record it as a query parameter.
     data = _request(f"{base}/models/{model}:generateContent", {"x-goog-api-key": key}, payload, timeout)

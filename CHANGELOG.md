@@ -4,6 +4,7 @@
 
 - Unified the smoke suite and added regression coverage for stable finding IDs, source-hash decision isolation, strict evidence quotes, and endpoint policy.
 - Added Windows desktop build checks with pinned build inputs, bounded job recovery scans, auditable runner context truncation, and explicit advisory venue stop criteria.
+- Closed provider endpoint boundaries: public HTTP is rejected, redirects are not followed for model/GROBID requests, and resumed remote jobs revalidate profiles. Provider output-token limits now map consistently across Anthropic, Gemini, and OpenAI-compatible APIs.
 
 ## 0.2.0 — 2026-10-06
 

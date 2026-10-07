@@ -157,6 +157,17 @@ class PanelHandler(BaseHTTPRequestHandler):
         venue_registry = str(data.get("venue_registry") or "").strip() or None
         return source, out, data.get("checklist") or None, validate_workflow(workflow) if workflow else None, pdf_parser, grobid_endpoint, venue, venue_registry
 
+    def _validated_direct_profile(self, profile_id: str | None) -> dict:
+        config = load_llm_config(self.server.config_path)
+        profile = select_profile(config, profile_id)
+        if str(profile.get("base_url") or "").strip():
+            self.server.validate_endpoint(str(profile["base_url"]))
+        if profile.get("enabled") is False:
+            raise ValueError(f"模型 profile 已停用：{profile.get('id', '')}")
+        if str(profile.get("protocol", "")).casefold() == "host_agent":
+            raise ValueError("host_agent 由宿主执行，不能作为直接模型任务")
+        return profile
+
     def _validate_apply(self, data: dict) -> None:
         if data.get("confirm") is not True:
             raise ValueError("修改操作需要 confirm=true")
@@ -237,13 +248,16 @@ class PanelHandler(BaseHTTPRequestHandler):
         elif kind == "review":
             run = self.server.safe_run(str(payload.get("run_dir") or record.get("run_dir", "")))
             profile_id = str(payload.get("profile_id") or "").strip() or None
+            profile = self._validated_direct_profile(profile_id)
+            profile_id = str(profile.get("id"))
+            timeout = max(1, min(1800, int(payload.get("timeout", 120) or 120)))
             verify_after = payload.get("verify_after") is not False
             def work(progress):
                 return run_review(
                     run,
                     config_path=self.server.config_path,
                     profile_id=profile_id,
-                    timeout=int(payload.get("timeout", 120) or 120),
+                    timeout=timeout,
                     verify_after=verify_after,
                     progress=progress,
                 )
@@ -252,13 +266,20 @@ class PanelHandler(BaseHTTPRequestHandler):
             profiles = payload.get("profiles")
             if not isinstance(profiles, list) or len(set(str(item) for item in profiles)) < 2:
                 raise ValueError("Panel 恢复任务需要至少两个不同的模型 profile")
+            profiles = [str(self._validated_direct_profile(str(item)).get("id")) for item in profiles]
+            if len(set(profiles)) > 8:
+                raise ValueError("Panel 一次最多支持 8 个 judge model profile")
+            required_models = max(1, min(8, int(payload.get("required_models", 2) or 2)))
+            if required_models > len(set(profiles)):
+                raise ValueError("required_models 不能大于所选的 judge model profile 数")
+            timeout = max(1, min(1800, int(payload.get("timeout", 120) or 120)))
             def work(progress):
                 return run_panel(
                     run,
                     profile_ids=[str(item) for item in profiles],
                     config_path=self.server.config_path,
-                    timeout=int(payload.get("timeout", 120) or 120),
-                    required_models=int(payload.get("required_models", 2) or 2),
+                    timeout=timeout,
+                    required_models=required_models,
                     progress=progress,
                 )
         elif kind == "apply":
