@@ -44,6 +44,32 @@ class JobManager:
         run = Path(str(record.get("run_dir", "")))
         return run / ".paperaudit" / "jobs" / f"{record['job_id']}.json"
 
+    @staticmethod
+    def _job_files(root: Path):
+        """Yield persisted job files without recursively scanning user data.
+
+        Panel runs are created directly below the registered run root.  A
+        bounded lookup keeps recovery responsive when the root also contains
+        manuscript attachments or large unrelated directories.
+        """
+
+        directories = [root / ".paperaudit" / "jobs"]
+        try:
+            directories.extend(
+                child / ".paperaudit" / "jobs"
+                for child in root.iterdir()
+                if child.is_dir() and not child.is_symlink() and child.name != ".paperaudit"
+            )
+        except OSError:
+            return
+        for directory in directories:
+            try:
+                if directory.is_symlink() or not directory.is_dir():
+                    continue
+                yield from (path for path in directory.glob("*.json") if not path.is_symlink())
+            except OSError:
+                continue
+
     def _persist(self, record: dict[str, Any]) -> None:
         path = self._record_path(record)
         try:
@@ -62,14 +88,7 @@ class JobManager:
     def _load_persisted(self, job_id: str) -> dict[str, Any] | None:
         candidates: list[Path] = []
         for root in self._roots:
-            try:
-                candidates.extend(
-                    path
-                    for path in root.rglob(f"{job_id}.json")
-                    if path.parent.name == "jobs" and path.parent.parent.name == ".paperaudit"
-                )
-            except OSError:
-                continue
+            candidates.extend(path for path in self._job_files(root) if path.name == f"{job_id}.json")
         for path in candidates:
             try:
                 value = json.loads(path.read_text(encoding="utf-8"))
@@ -210,21 +229,13 @@ class JobManager:
             }
             roots = {Path(root).resolve()} if root else set(self._roots)
             for registered in roots:
-                try:
-                    paths = (
-                        path
-                        for path in registered.rglob("*.json")
-                        if path.parent.name == "jobs" and path.parent.parent.name == ".paperaudit"
-                    )
-                    for path in paths:
-                        try:
-                            value = json.loads(path.read_text(encoding="utf-8"))
-                        except (OSError, ValueError, TypeError):
-                            continue
-                        if isinstance(value, dict) and value.get("job_id"):
-                            records.setdefault(str(value["job_id"]), value)
-                except OSError:
-                    continue
+                for path in self._job_files(registered):
+                    try:
+                        value = json.loads(path.read_text(encoding="utf-8"))
+                    except (OSError, ValueError, TypeError):
+                        continue
+                    if isinstance(value, dict) and value.get("job_id"):
+                        records.setdefault(str(value["job_id"]), value)
             values = [
                 self._recover_if_stale(record) if job_id not in self._jobs else record
                 for job_id, record in records.items()

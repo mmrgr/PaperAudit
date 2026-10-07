@@ -35,7 +35,9 @@ def gate_finding(doc: DocumentIR, finding: Finding, *, allow_empty: bool = True)
     instead of silently falling back to a document-wide match.
     """
     def norm(s: str) -> str:
-        return re.sub(r"\s+", "", s or "")
+        # Keep word boundaries intact.  Removing all whitespace would let a
+        # fabricated ``samplesize was10`` quote match ``sample size was 10``.
+        return re.sub(r"\s+", " ", s or "").strip()
 
     # A detector failure is a diagnostic, never an empty-quote finding.  Keep
     # this guard here because deterministic callers intentionally use
@@ -55,23 +57,25 @@ def gate_finding(doc: DocumentIR, finding: Finding, *, allow_empty: bool = True)
 
     if finding.block_ids:
         blocks = [doc.block_by_id(bid) for bid in finding.block_ids]
-        if not any(blocks):
+        if any(block is None for block in blocks):
             finding.gate_passed = False
             finding.gate_reason = "block-not-found"
             finding.verdict = Verdict.UNVERIFIABLE
             finding.confidence = min(finding.confidence, 0.3)
             return finding
-        hay = "\n".join(b.text for b in blocks if b is not None)
+        candidate_blocks = list(blocks)
     else:
-        hay = doc.full_text()
-    hay_n = norm(hay)
+        candidate_blocks = list(doc.blocks)
+    hay_n = [norm(block.text) for block in candidate_blocks]
 
-    # 清单型 quote（"A、B、C"）必须逐项命中。只命中其中一项不能让
-    # 包含多个断言的 finding 整体通过证据门禁。
-    parts = [p for p in _SPLIT_QUOTE.split(finding.verbatim_quote) if p.strip()]
-    if len(parts) > 1:
-        hits = sum(1 for p in parts if norm(p) in hay_n)
-        if hits == len(parts):
+    # Disjoint snippets are allowed only when a deterministic detector opts
+    # into that mode explicitly.  Model findings must match one contiguous
+    # normalized span in the cited blocks.
+    if str(getattr(finding, "quote_mode", "contiguous")) == "disjoint_parts":
+        parts = [p for p in _SPLIT_QUOTE.split(finding.verbatim_quote) if p.strip()]
+        block_texts = hay_n
+        hits = sum(1 for p in parts if any(norm(p) in text for text in block_texts))
+        if parts and hits == len(parts):
             finding.gate_passed = True
             finding.gate_reason = f"all-parts-match {hits}/{len(parts)}"
             return finding
@@ -80,7 +84,7 @@ def gate_finding(doc: DocumentIR, finding: Finding, *, allow_empty: bool = True)
         finding.verdict = Verdict.UNVERIFIABLE
         finding.confidence = min(finding.confidence, 0.3)
         return finding
-    elif norm(finding.verbatim_quote) in hay_n:
+    if any(norm(finding.verbatim_quote) in block_text for block_text in hay_n):
         finding.gate_passed = True
         finding.gate_reason = "exact-match"
         return finding
@@ -93,6 +97,12 @@ def gate_finding(doc: DocumentIR, finding: Finding, *, allow_empty: bool = True)
 
 
 def _assign_ids(findings: list[Finding]) -> None:
+    # ``verify`` assigns the presentation IDs once after aggregation.  Do not
+    # renumber them while rendering the report: decisions and graph relations
+    # already refer to that run's display IDs, while the stable ``uid`` carries
+    # identity across later re-runs.
+    if findings and all(str(f.id or "").startswith("F") for f in findings):
+        return
     confirmed = [f for f in findings if f.verdict is not Verdict.UNVERIFIABLE]
     confirmed.sort(key=lambda f: (_SEV_ORDER.get(f.severity, 3), -f.confidence))
     for i, f in enumerate(confirmed, 1):

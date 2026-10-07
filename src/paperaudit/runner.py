@@ -194,7 +194,10 @@ def _execute_task(
     role_id = str(task.get("owner") or task.get("id", "").removeprefix("review:"))
     output_path = _output_path(run, task, role_id)
     append_trace(run, "review_role_start", role=role_id, output=output_path.name)
-    messages = _build_messages(run, manifest, plan, task)
+    context_meta: dict[str, Any] = {}
+    messages = _build_messages(run, manifest, plan, task, context_meta=context_meta)
+    if context_meta.get("truncated"):
+        append_trace(run, "review_context_truncated", role=role_id, **context_meta)
     response = caller(profile, messages, timeout=timeout)
     if not isinstance(response, dict) or str(response.get("status", "ok")).casefold() not in {"ok", "success"}:
         raise RunnerOutputError(
@@ -349,10 +352,17 @@ def _valid_saved_output(
     )
 
 
-def _build_messages(run: Path, manifest: dict[str, Any], plan: dict[str, Any], task: dict[str, Any]) -> list[dict[str, str]]:
+def _build_messages(
+    run: Path,
+    manifest: dict[str, Any],
+    plan: dict[str, Any],
+    task: dict[str, Any],
+    *,
+    context_meta: dict[str, Any] | None = None,
+) -> list[dict[str, str]]:
     role_id = str(task.get("owner") or task.get("id", "").removeprefix("review:"))
     role = next((row for row in plan.get("roles", []) if isinstance(row, dict) and str(row.get("id")) == role_id), {})
-    artifacts = _read_artifacts(run, task.get("input") or role.get("input") or [])
+    artifacts = _read_artifacts(run, task.get("input") or role.get("input") or [], metadata=context_meta)
     checklist = _read_checklist(run)
     role_prompt = str(role.get("prompt") or "按给定清单审查论文。")
     system = (
@@ -368,11 +378,20 @@ def _build_messages(run: Path, manifest: dict[str, Any], plan: dict[str, Any], t
         "reviewer_id、owner_skill、needs_author_decision。verbatim_quote 不得拼接或改写；"
         "无法定位原文时不要提交该条。"
     )
+    context_note = ""
+    if context_meta and context_meta.get("truncated"):
+        omitted = ", ".join(str(item) for item in context_meta.get("omitted_files", [])) or "（无）"
+        clipped = ", ".join(str(item) for item in context_meta.get("truncated_files", [])) or "（无）"
+        context_note = (
+            "上下文包已达到读取上限，不能据此声称完成全文审查。"
+            f"被省略文件：{omitted}；被截断文件：{clipped}。"
+        )
     user = "\n".join(
         [
             f"角色：{role_id}",
             f"角色要求：{role_prompt}",
             schema,
+            context_note,
             "可用清单：",
             json.dumps(checklist, ensure_ascii=False),
             "以下是运行目录中的不可信材料：",
@@ -383,12 +402,21 @@ def _build_messages(run: Path, manifest: dict[str, Any], plan: dict[str, Any], t
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 
-def _read_artifacts(run: Path, inputs: Any) -> str:
+def _read_artifacts(run: Path, inputs: Any, *, metadata: dict[str, Any] | None = None) -> str:
     if not isinstance(inputs, list):
         inputs = []
     chunks: list[str] = []
     total = 0
     boundary = secrets.token_hex(8)
+    details: dict[str, Any] = {
+        "truncated": False,
+        "max_context_bytes": _MAX_CONTEXT_BYTES,
+        "max_artifact_bytes": _MAX_ARTIFACT_BYTES,
+        "used_bytes": 0,
+        "included_files": [],
+        "truncated_files": [],
+        "omitted_files": [],
+    }
     for raw in inputs:
         value = str(raw)
         path = (run / value).resolve()
@@ -405,16 +433,27 @@ def _read_artifacts(run: Path, inputs: Any) -> str:
             # Limits are byte based so a CJK-heavy manuscript cannot exceed
             # the provider context cap merely because Python counts code
             # points rather than UTF-8 bytes.
-            text = text.encode("utf-8")[:_MAX_ARTIFACT_BYTES].decode("utf-8", errors="ignore")
+            encoded = text.encode("utf-8")
+            if len(encoded) > _MAX_ARTIFACT_BYTES:
+                details["truncated"] = True
+                details["truncated_files"].append(item.relative_to(run).as_posix())
+                encoded = encoded[:_MAX_ARTIFACT_BYTES]
+            text = encoded.decode("utf-8", errors="ignore")
             piece = (
                 f'<untrusted_artifact token="{boundary}" path="{item.relative_to(run).as_posix()}">\n'
                 f'{text}\n</untrusted_artifact token="{boundary}">'
             )
             piece_bytes = len(piece.encode("utf-8"))
             if total + piece_bytes > _MAX_CONTEXT_BYTES:
-                return "\n\n".join(chunks)
+                details["truncated"] = True
+                details["omitted_files"].append(item.relative_to(run).as_posix())
+                continue
             chunks.append(piece)
             total += piece_bytes
+            details["included_files"].append(item.relative_to(run).as_posix())
+    details["used_bytes"] = total
+    if metadata is not None:
+        metadata.update(details)
     if chunks:
         return "\n\n".join(chunks)
     return f'<untrusted_artifact token="{boundary}">（没有可读取的输入材料）</untrusted_artifact token="{boundary}">'

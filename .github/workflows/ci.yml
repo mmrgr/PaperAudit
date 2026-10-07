@@ -26,31 +26,31 @@ jobs:
       - name: Check bundled control panel is synchronized
         run: diff -u ui/control-panel.html src/paperaudit/static/control-panel.html
       - name: Run deterministic smoke suite
-        env:
-          PYTHONPATH: src
-        run: |
-          python tests/p0_correctness.py
-          python tests/revise_safety.py
-          python tests/privacy_smoke.py
-          python tests/numeric_fact_smoke.py
-          python tests/finding_graph_smoke.py
-          python tests/ir_snapshot_smoke.py
-          python tests/checklist_registry_smoke.py
-          python tests/venue_smoke.py
-          python tests/citation_integrity_smoke.py
-          python tests/local_evidence_smoke.py
-          python tests/adjudication_smoke.py
-          python tests/panel_runner_smoke.py
-          python tests/runner_smoke.py
-          python tests/jobs_persistence_smoke.py
-          python tests/grobid_reader_smoke.py
-          python tests/benchmark_smoke.py
-          python tests/benchmark_regression_smoke.py
-          python tests/llm_smoke.py
-          python tests/llm_config_smoke.py
-          python tests/author_year_smoke.py
-          python tests/notes_smoke.py
-          python tests/pdf_native_smoke.py
-          python tests/panel_smoke.py
+        run: python tests/smoke_suite.py
       - name: Build wheel
         run: python -m pip wheel --no-deps --no-build-isolation . -w dist-ci
+
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r requirements-build.txt
+      - run: python -m pip install -e ".[test]"
+      - name: Build desktop bundle
+        shell: pwsh
+        run: .\build_exe.ps1 -Mode onedir -PythonPath (Get-Command python).Source
+      - name: Smoke packaged executable
+        shell: pwsh
+        run: |
+          $exe = Join-Path $env:GITHUB_WORKSPACE 'dist\PaperAudit\PaperAudit.exe'
+          if (-not (Test-Path $exe)) { throw "Missing packaged executable: $exe" }
+          & $exe --help
+          if ($LASTEXITCODE -ne 0) { throw "Packaged executable --help failed with exit code $LASTEXITCODE" }
+          foreach ($required in @('_internal\checklists\academic.yaml', '_internal\venues\registry.yaml', '_internal\paperaudit\static\control-panel.html')) {
+            if (-not (Test-Path (Join-Path (Split-Path $exe) $required))) { throw "Missing packaged data: $required" }
+          }

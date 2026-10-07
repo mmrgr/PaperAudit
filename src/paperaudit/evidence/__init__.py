@@ -1,6 +1,6 @@
 """确定性扫描入口。"""
 
-from . import citations, crossref, numbers, numeric_facts, privacy, structure, terminology
+from . import citations, crossref, numbers as numbers, numeric_facts, privacy, structure, terminology
 
 DETECTORS = {
     "structure": structure.check,

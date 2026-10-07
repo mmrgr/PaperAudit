@@ -11,6 +11,10 @@
 
 ## 构建
 
+发布构建使用 CPython 3.11、3.12 或 3.13，并从仓库根目录的
+`requirements-build.txt` 安装固定版本的 `python-docx`、`PyYAML`、
+`pdfplumber` 和 PyInstaller。开发环境仍可使用 `pyproject.toml` 中的范围依赖。
+
 在 PowerShell 中执行：
 
 ```powershell

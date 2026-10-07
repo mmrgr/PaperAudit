@@ -1,0 +1,7 @@
+# Reproducible Windows desktop build inputs (CPython 3.11, 3.12, or 3.13).
+# Keep this file separate from pyproject.toml so library users retain flexible
+# dependency ranges while release builds use a reviewed dependency set.
+python-docx==1.2.0
+PyYAML==6.0.3
+pdfplumber==0.11.9
+pyinstaller==6.22.0

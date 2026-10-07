@@ -189,6 +189,7 @@ def run_panel(
         {
             "schema_version": 1,
             "input_digest": digest,
+            "source_hash": str(_read_object(run / "findings.json").get("source_hash", "")),
             "profiles": profile_names,
             "positions": list(POSITIONS),
             "judgments": normalized,

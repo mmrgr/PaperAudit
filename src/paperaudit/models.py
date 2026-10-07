@@ -34,6 +34,45 @@ def stable_id(*parts: Any) -> str:
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
 
 
+def stable_finding_uid(
+    issue_type: Any,
+    checklist_id: Any,
+    block_ids: Any,
+    verbatim_quote: Any,
+    *,
+    char_ranges: Any = (),
+    page_anchors: Any = (),
+    semantic_anchor: Any = "",
+) -> str:
+    """Return the identity of a finding independent of its display number.
+
+    Display IDs (``F001``) are intentionally assigned after sorting and may
+    change when a new issue is discovered.  Decisions and revision artifacts
+    need an identity that survives that reordering, so the hash is based on
+    the issue kind and its manuscript anchors instead.
+    """
+
+    issue = str(getattr(issue_type, "value", issue_type) or "").strip().casefold()
+    checklist = normalize_ws(str(checklist_id or "")).casefold()
+    blocks = ",".join(sorted({str(value).strip() for value in (block_ids or ()) if str(value).strip()}))
+    ranges = ",".join(
+        f"{int(value[0])}:{int(value[1])}"
+        for value in sorted(
+            (
+                value
+                for value in (char_ranges or ())
+                if isinstance(value, (list, tuple)) and len(value) == 2
+            ),
+            key=lambda item: (int(item[0]), int(item[1])),
+        )
+    )
+    pages = ",".join(sorted({str(value).strip() for value in (page_anchors or ()) if str(value).strip()}))
+    quote = normalize_ws(str(verbatim_quote or ""))
+    anchor = normalize_ws(str(semantic_anchor or "")) if not (blocks or ranges or pages) else ""
+    material = "\x1f".join((issue, checklist, blocks, ranges, pages, quote, anchor))
+    return "fd_" + hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
+
+
 # --------------------------------------------------------------------------
 # 1. DocumentIR
 # --------------------------------------------------------------------------
@@ -219,6 +258,24 @@ class Finding:
     support: int = 1
     related: list[str] = field(default_factory=list)
     relation: str = ""  # duplicate | supports | same_root_cause | contradicts
+    # Stable identity for author decisions and revision tracking.  ``id`` is a
+    # presentation number and may be re-assigned after sorting.
+    uid: str = ""
+    # Deterministic detectors may intentionally cite several independent
+    # snippets.  LLM findings keep the strict contiguous default.
+    quote_mode: str = "contiguous"
+
+    def __post_init__(self) -> None:
+        if not self.uid:
+            self.uid = stable_finding_uid(
+                self.issue_type,
+                self.checklist_id,
+                self.block_ids,
+                self.verbatim_quote,
+                char_ranges=self.char_ranges,
+                page_anchors=self.page_anchors,
+                semantic_anchor=self.rationale,
+            )
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)

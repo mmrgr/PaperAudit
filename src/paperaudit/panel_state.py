@@ -47,11 +47,20 @@ def read_decisions(run_dir: Path) -> list[dict]:
     return rows
 
 
-def append_decision(run_dir: Path, finding_id: str, decision: str, reason: str, source_hash: str) -> dict:
+def append_decision(
+    run_dir: Path,
+    finding_id: str,
+    decision: str,
+    reason: str,
+    source_hash: str,
+    *,
+    finding_uid: str = "",
+) -> dict:
     if decision not in {"accept", "reject", "contest"}:
         raise ValueError("decision must be accept, reject, or contest")
     row = {
         "finding_id": finding_id,
+        "finding_uid": finding_uid,
         "decision": decision,
         "actor": "user",
         "reason": reason.strip(),
@@ -63,11 +72,14 @@ def append_decision(run_dir: Path, finding_id: str, decision: str, reason: str, 
     return row
 
 
-def latest_decisions(run_dir: Path) -> dict[str, dict]:
+def latest_decisions(run_dir: Path, *, source_hash: str = "") -> dict[str, dict]:
     latest: dict[str, dict] = {}
     for row in read_decisions(run_dir):
-        if row.get("finding_id"):
-            latest[str(row["finding_id"])] = row
+        if source_hash and str(row.get("source_hash", "")) != source_hash:
+            continue
+        key = row.get("finding_uid") or row.get("finding_id")
+        if key:
+            latest[str(key)] = row
     return latest
 
 
@@ -98,7 +110,7 @@ def build_state(run_dir: str | Path) -> dict:
     plan = read_json(run / "collaboration.plan.json", {})
     result = read_json(run / "findings.json", {})
     trace = read_trace(run)
-    decisions = latest_decisions(run)
+    decisions = latest_decisions(run, source_hash=str(manifest.get("hash", "")))
     adjudication = read_json(run / "adjudication.json", {})
     revision_plan = read_json(run / "revision.plan.json", {})
     roles = [_role_state(run, role) for role in plan.get("roles", [])] if isinstance(plan, dict) else []
@@ -108,14 +120,29 @@ def build_state(run_dir: str | Path) -> dict:
     confirmed = list(result.get("confirmed", [])) if isinstance(result, dict) else []
     rejected = list(result.get("rejected", [])) if isinstance(result, dict) else []
     decision_values = {key: value.get("decision") for key, value in decisions.items()}
-    panel_values = {
-        str(row.get("finding_id")): row
-        for row in (adjudication.get("findings", []) if isinstance(adjudication, dict) else [])
-        if isinstance(row, dict) and row.get("finding_id")
-    }
+    current_hash = str(manifest.get("hash") or result.get("source_hash") or "")
+    adjudication_hash = str(adjudication.get("source_hash", "")) if isinstance(adjudication, dict) else ""
+    adjudication_matches = isinstance(adjudication, dict) and (
+        adjudication_hash == current_hash if current_hash else not adjudication_hash
+    )
+    panel_values: dict[str, dict] = {}
+    for row in (adjudication.get("findings", []) if adjudication_matches else []):
+        if not isinstance(row, dict):
+            continue
+        if row.get("finding_id"):
+            panel_values[str(row["finding_id"])] = row
+        if row.get("finding_uid"):
+            panel_values[str(row["finding_uid"])] = row
     for finding in confirmed + rejected:
-        finding["panel_decision"] = decision_values.get(str(finding.get("id", "")), "pending")
-        panel = panel_values.get(str(finding.get("id", "")))
+        finding_id = str(finding.get("id", ""))
+        finding_uid = str(finding.get("uid") or finding.get("finding_uid") or "")
+        # New decisions are keyed by uid.  Legacy id-only decisions are only
+        # accepted for legacy findings that do not carry a uid; this prevents a
+        # re-run that reorders F001/F002 from silently applying an old choice to
+        # a different issue.
+        decision = decisions.get(finding_uid) if finding_uid else decisions.get(finding_id)
+        finding["panel_decision"] = (decision or {}).get("decision", "pending")
+        panel = panel_values.get(finding_uid) or panel_values.get(finding_id)
         if panel:
             finding["panel_verdict"] = panel.get("verdict", "unverifiable")
             finding["panel_reason"] = panel.get("reason", "")
@@ -136,7 +163,11 @@ def build_state(run_dir: str | Path) -> dict:
         if task_id == "verify":
             return "completed" if has_verify else "pending"
         if task_id == "author_approval":
-            return "completed" if confirmed and all(decision_values.get(str(f.get("id"))) in {"accept", "reject", "contest"} for f in confirmed) else ("waiting_user" if confirmed else "pending")
+            return "completed" if confirmed and all(
+                ((decisions.get(str(f.get("uid") or f.get("finding_uid") or "")) if f.get("uid") or f.get("finding_uid") else decisions.get(str(f.get("id")))) or {}).get("decision")
+                in {"accept", "reject", "contest"}
+                for f in confirmed
+            ) else ("waiting_user" if confirmed else "pending")
         if task_id in {"revise", "regression"}:
             return "completed" if has_apply else "pending"
         outputs = task.get("output", [])

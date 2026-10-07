@@ -76,6 +76,7 @@ def _numbering(doc: DocumentIR) -> list[Finding]:
                     confidence=0.9,
                     block_ids=[b.id for _, b in seq],
                     verbatim_quote=quote,
+                    quote_mode="disjoint_parts",
                     rationale=f"{'第 ' + str(lv) + ' 级' if lv else ''}标题编号在 {label or '顶层'} "
                     f"下不连续，缺失 {gaps}（现有 {nums}）。"
                     "注意：编号在多处被引用，改动需全文同步。",

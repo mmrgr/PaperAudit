@@ -44,6 +44,10 @@ def main() -> None:
         restarted = JobManager()
         restarted.register_root(root)
         assert restarted.get(job_id)["status"] == "completed"
+        hidden = root / "nested" / "deeper" / ".paperaudit" / "jobs"
+        hidden.mkdir(parents=True)
+        (hidden / "unrelated.json").write_text(json.dumps({"job_id": "unrelated"}), encoding="utf-8")
+        assert not any(item["job_id"] == "unrelated" for item in restarted.list_jobs(root))
 
         cancel_run = root / "cancel"
         cancel_id = manager.start(

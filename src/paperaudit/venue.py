@@ -36,7 +36,12 @@ class VenueProfile:
     source_url: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        value = asdict(self)
+        # Stop criteria are declarative until a corresponding executable
+        # checker exists.  Keep that boundary explicit in every run artifact.
+        value["stop_criteria_status"] = "advisory"
+        value["stop_criteria_evaluated"] = False
+        return value
 
 
 def list_venues(registry_path: str | Path | None = None) -> list[VenueProfile]:

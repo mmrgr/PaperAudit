@@ -21,6 +21,9 @@ def main() -> None:
     profiles = list_venues()
     assert profiles and resolve_venue("generic") == profiles[0]
     profile = profiles[0]
+    profile_data = profile.to_dict()
+    assert profile_data["stop_criteria_status"] == "advisory"
+    assert profile_data["stop_criteria_evaluated"] is False
     with tempfile.TemporaryDirectory(prefix="paperaudit-venue-") as temp:
         root = Path(temp)
         source = root / "paper.docx"
@@ -37,7 +40,10 @@ def main() -> None:
         manifest = (run / "manifest.json").read_text(encoding="utf-8")
         assert '"venue"' in manifest
         assert (run / "venue.profile.json").exists()
-        assert any(item["checklist_id"].startswith("venue:generic-pre-submission") for item in json.loads(manifest)["deterministic_findings"])
+        manifest_data = json.loads(manifest)
+        assert manifest_data["venue"]["stop_criteria_status"] == "advisory"
+        assert manifest_data["venue"]["stop_criteria_evaluated"] is False
+        assert any(item["checklist_id"].startswith("venue:generic-pre-submission") for item in manifest_data["deterministic_findings"])
         custom = root / "venue.yaml"
         custom.write_text("id: lab-profile\nname: Lab profile\nrequired_sections: [摘要]\n", encoding="utf-8")
         assert resolve_venue(custom) is not None

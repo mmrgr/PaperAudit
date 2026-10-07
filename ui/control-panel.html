@@ -51,7 +51,7 @@
     (()=>{
       const $=s=>document.querySelector(s); let state=null, selected=null, revisionPlan=null, workflowSpec=null, llmConfig=null, activeJobId=null, lastJobId=null, jobTimer=null;
       const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-      const pageToken=new URLSearchParams(location.search).get('token')||''; const api=async(path,opts={})=>{const headers={'Content-Type':'application/json',...(pageToken?{'X-PaperAudit-Token':pageToken}:{}),...(opts.headers||{})};const r=await fetch(path,{...opts,headers});const d=await r.json();if(!r.ok)throw new Error(d.message||r.statusText);return d};
+      let pageToken=new URLSearchParams(location.search).get('token')||''; if(pageToken){history.replaceState(null,'',location.pathname+location.hash)} const api=async(path,opts={})=>{const headers={'Content-Type':'application/json',...(pageToken?{'X-PaperAudit-Token':pageToken}:{}),...(opts.headers||{})};const r=await fetch(path,{...opts,headers});const d=await r.json();if(!r.ok)throw new Error(d.message||r.statusText);return d};
       const showError=e=>{$('#alert').innerHTML=`<div class="pa-alert">${esc(e.message||e)}</div>`};
       const clearError=()=>{$('#alert').innerHTML=''};
       function setLive(message,status='idle',progress=null){const box=$('#liveStatus');if(!box)return;box.className=`pa-live-status ${status}`;box.textContent=status==='running'?`正在执行 ${message}……${progress==null?'':` ${progress}%`}`:message}

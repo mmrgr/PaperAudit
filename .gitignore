@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 build/
+dist/
 out/
 src/paperaudit.egg-info/
 tests/_tmp/

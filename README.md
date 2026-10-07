@@ -330,4 +330,4 @@ skills/paper-audit/       Codex 与 WorkBuddy Skill
 - 语义审查依赖宿主模型质量
 - 判断性问题（贡献是否成立）不在能力范围内 —— 这是"验证型"定位的边界，不假装能做
 
-项目提供 MIT 许可证、`CITATION.cff` 和 GitHub Actions smoke CI。CI 覆盖确定性检查、引用审计、证据目录、直接模型 runner 与 provider-backed panel 的离线桩测试、面板 API、UI 静态文件同步和 wheel 构建；它不代表真实期刊语料上的召回率。
+项目提供 MIT 许可证、`CITATION.cff` 和 GitHub Actions smoke CI。CI 通过 `tests/smoke_suite.py` 统一运行确定性检查、引用审计、证据目录、直接模型 runner 与 provider-backed panel 的离线桩测试、面板 API、UI 静态文件同步和 wheel 构建，并在 Windows 上构建和启动桌面包；它不代表真实期刊语料上的召回率。

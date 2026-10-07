@@ -144,6 +144,7 @@ def aggregate_panel(
         records.append(
             {
                 "finding_id": finding_id,
+                "finding_uid": _text(finding.get("uid")),
                 "verdict": verdict,
                 "reason": reason,
                 "judge_models": models,
@@ -198,6 +199,7 @@ def adjudicate_run(
     result = aggregate_panel(findings, judgments or [], required_models=required_models)
     result["run_dir"] = str(run)
     result["source"] = findings_payload.get("source", "")
+    result["source_hash"] = _text(findings_payload.get("source_hash"))
     result["judgments_source"] = str(Path(judgments_path).resolve())
     destination = Path(output_path).resolve() if output_path else run / "adjudication.json"
     destination.parent.mkdir(parents=True, exist_ok=True)

@@ -90,12 +90,17 @@ def verify(
             block_ids=list(r.get("block_ids") or []),
             verbatim_quote=str(r.get("verbatim_quote") or ""),
             rationale=str(r.get("rationale") or ""),
+            evidence_refs=[str(value) for value in (r.get("evidence_refs") or [])],
             checklist_id=str(r.get("checklist_id") or ""),
             reviewer_id=str(r.get("reviewer_id") or r.get("agent_role") or ""),
+            reviewer_ids=[str(value) for value in (r.get("reviewer_ids") or [])],
+            page_anchors=[str(value) for value in (r.get("page_anchors") or [])],
+            char_ranges=[tuple(value) for value in (r.get("char_ranges") or [])],
             source="llm",
             needs_author_decision=True,
             suggested_fix=str(r.get("suggested_fix") or ""),
             owner_skill=str(r.get("owner_skill") or "paper_audit"),
+            quote_mode="contiguous",
         )
         findings.append(f)
 
@@ -149,6 +154,7 @@ def verify(
         json.dumps(
             {
                 "source": source,
+                "source_hash": str(manifest.get("hash") or (ir.source_hash if ir is not None else "")),
                 "confirmed": [f.to_dict() | {"suggested_fix": getattr(f, "suggested_fix", "")} for f in confirmed],
                 "rejected": [f.to_dict() for f in rejected],
             },
@@ -277,7 +283,7 @@ def _validate_raw_finding(row: object) -> str:
         return "confidence 必须是 0..1 数字"
     if not 0 <= float(confidence) <= 1:
         return "confidence 必须处于 0..1"
-    for key in ("block_ids", "char_ranges", "reviewer_ids", "page_anchors"):
+    for key in ("block_ids", "char_ranges", "reviewer_ids", "page_anchors", "evidence_refs"):
         if key in row and not isinstance(row[key], list):
             return f"{key} 必须是数组"
     if any(not isinstance(block, str) for block in (row.get("block_ids") or [])):
@@ -285,6 +291,8 @@ def _validate_raw_finding(row: object) -> str:
     for key in ("reviewer_ids", "page_anchors"):
         if any(not isinstance(value, str) for value in (row.get(key) or [])):
             return f"{key} 必须只包含字符串"
+    if any(not isinstance(value, str) for value in (row.get("evidence_refs") or [])):
+        return "evidence_refs 必须只包含字符串"
     for value in row.get("char_ranges") or []:
         if (
             not isinstance(value, (list, tuple))
@@ -529,6 +537,10 @@ def _sev_rank(s: Severity) -> int:
 
 
 def _from_dict(d: dict) -> Finding:
+    try:
+        verdict = Verdict(str(d.get("verdict", "confirmed")))
+    except ValueError:
+        verdict = Verdict.UNVERIFIABLE
     return Finding(
         id=str(d.get("id", "")),
         issue_type=IssueType(str(d.get("issue_type", "other"))),
@@ -537,6 +549,7 @@ def _from_dict(d: dict) -> Finding:
         block_ids=list(d.get("block_ids") or []),
         verbatim_quote=str(d.get("verbatim_quote") or ""),
         rationale=str(d.get("rationale") or ""),
+        evidence_refs=[str(value) for value in (d.get("evidence_refs") or [])],
         checklist_id=str(d.get("checklist_id") or ""),
         source=str(d.get("source", "deterministic")),
         reviewer_id=str(d.get("reviewer_id", "")),
@@ -549,8 +562,15 @@ def _from_dict(d: dict) -> Finding:
             if isinstance(x, (list, tuple)) and len(x) == 2
         ],
         owner_skill=str(d.get("owner_skill", "paper_audit")),
-        gate_passed=bool(d.get("verdict", "confirmed") != "unverifiable"),
+        quote_mode=str(d.get("quote_mode", "contiguous") or "contiguous"),
+        uid=str(d.get("uid", "") or ""),
+        verdict=verdict,
+        gate_passed=bool(d.get("gate_passed", verdict is not Verdict.UNVERIFIABLE)),
+        gate_reason=str(d.get("gate_reason", "") or ""),
         needs_author_decision=bool(d.get("needs_author_decision", False)),
+        support=max(1, int(d.get("support", 1) or 1)),
+        related=[str(value) for value in (d.get("related") or [])],
+        relation=str(d.get("relation", "") or ""),
     )
 
 

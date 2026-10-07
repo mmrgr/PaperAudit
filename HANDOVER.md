@@ -6,7 +6,7 @@
 
 | 项 | 路径 |
 |---|---|
-| **项目根目录** | `C:\Users\mmrgr\WorkBuddy\2026-09-22-14-09-30\PaperAudit` |
+| **项目根目录** | `C:\Users\mmrgr\Desktop\论文\lwxm` |
 | 源码 | `<根>/src/paperaudit/` |
 | 审查清单 | `<根>/checklists/academic.yaml` |
 | Skill 源 | `<根>/skills/paper-audit/SKILL.md` |
@@ -144,7 +144,7 @@ python -m paperaudit.cli check a.docx b.docx --out ./out/   # 多篇串行
 | 双位置多模型 panel 裁决 | ✅ | `run-panel` 按 provider × `claim_first`/`evidence_first` 并行执行并写入 `panel.runtime.json` checkpoint；`adjudicate` 要求两个独立 judge model，代码聚合为 `confirmed / contested / refuted / unverifiable`，保留原始判断 |
 | EditProposal 修订计划 | ✅ | `plan-revision`、`/api/revision/plan` 和面板预览生成目标 span、`expected_old_text`、replacement、风险级别、冲突图及 `revision.diff`；`apply` 复用同一 preflight 并写入 `revision.plan.json` |
 | 模型密钥保护 | ✅ | Windows DPAPI 保存 `api_key_protected`，配置文件无明文 key；环境变量仍是跨平台推荐路径 |
-| 发布与 CI 基础设施 | ✅ | MIT `LICENSE`、`CITATION.cff`、`CHANGELOG.md` 和 `.github/workflows/ci.yml`；三版本 Python smoke + wheel 构建 |
+| 发布与 CI 基础设施 | ✅ | MIT `LICENSE`、`CITATION.cff`、`CHANGELOG.md` 和 `.github/workflows/ci.yml`；统一 smoke 入口、三版本 Python + Windows 桌面包构建、wheel 构建 |
 | Gemini system prompt | ✅ | Gemini 适配器将 system 消息映射到 `systemInstruction`，不会丢失证据门禁约束 |
 | 控制面板远程访问保护 | ✅ | 非本机绑定必须显式 `--allow-remote` + `--auth-token`；API 校验令牌，UI 从启动 URL 传递令牌 |
 | 面板任务持久化与恢复 | ✅ | `.paperaudit/jobs/*.json`；重启标记 `interrupted`，支持取消和重新校验后恢复 |

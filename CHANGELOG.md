@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Unified the smoke suite and added regression coverage for stable finding IDs, source-hash decision isolation, strict evidence quotes, and endpoint policy.
+- Added Windows desktop build checks with pinned build inputs, bounded job recovery scans, auditable runner context truncation, and explicit advisory venue stop criteria.
+
 ## 0.2.0 — 2026-10-06
 
 - Added native PDF and GROBID TEI ingestion with page/bounding-box anchors.

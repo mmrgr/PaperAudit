@@ -52,6 +52,7 @@ def check(doc: DocumentIR) -> list[Finding]:
             confidence=0.9,
             block_ids=[bid for _, matches in items for bid, _ in matches],
             verbatim_quote="、".join(dict.fromkeys(raw for _, matches in items for _, raw in matches)),
+            quote_mode="disjoint_parts",
             rationale=f"正文引用了 {len(items)} 个不存在对应题注的图表编号：{detail}。",
             evidence_refs=[k for k, _ in items],
             checklist_id="pre-submission/consistency",

@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import ipaddress
 import json
 import re
 import secrets
 import sys
 import webbrowser
 from datetime import datetime
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
@@ -17,7 +19,7 @@ from urllib.parse import parse_qs, quote, urlparse
 from paperaudit.collaboration import append_trace, default_workflow, load_workflow, validate_workflow
 from paperaudit.ingest import read_docx
 from paperaudit.jobs import JOBS
-from paperaudit.llm import chat as llm_chat, load_config as load_llm_config, public_config, save_config as save_llm_config, select_profile
+from paperaudit.llm import _validate_endpoint, chat as llm_chat, load_config as load_llm_config, public_config, save_config as save_llm_config, select_profile
 from paperaudit.panel_state import append_decision, build_state, read_json
 from paperaudit.panel_runner import run_panel
 from paperaudit.prepare import prepare
@@ -42,6 +44,10 @@ class PanelServer(ThreadingHTTPServer):
         self.run_root.mkdir(parents=True, exist_ok=True)
         self.config_path = self.run_root.parent / "config.json"
         self.auth_token = str(auth_token or "")
+        try:
+            self.remote_mode = not ipaddress.ip_address(str(address[0])).is_loopback
+        except ValueError:
+            self.remote_mode = str(address[0]).casefold() not in {"localhost", "127.0.0.1", "::1"}
         JOBS.register_root(self.run_root)
         super().__init__(address, PanelHandler)
 
@@ -74,6 +80,9 @@ class PanelServer(ThreadingHTTPServer):
             raise ValueError("workflow 必须保存于 --run-root 内")
         return path
 
+    def validate_endpoint(self, value: str) -> None:
+        _validate_endpoint(value, allow_loopback=not self.remote_mode)
+
 
 class PanelHandler(BaseHTTPRequestHandler):
     server: PanelServer
@@ -83,11 +92,13 @@ class PanelHandler(BaseHTTPRequestHandler):
         message = re.sub(r"([?&]token=)[^&\s]+", r"\1<redacted>", message, flags=re.IGNORECASE)
         print(f"[paperaudit-panel] {message}")
 
-    def _send(self, status: int, body: bytes, content_type: str = "application/json; charset=utf-8") -> None:
+    def _send(self, status: int, body: bytes, content_type: str = "application/json; charset=utf-8", *, extra_headers: dict[str, str] | None = None) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
 
@@ -102,6 +113,10 @@ class PanelHandler(BaseHTTPRequestHandler):
         supplied = self.headers.get("X-PaperAudit-Token", "")
         if not supplied:
             supplied = parse_qs(parsed.query).get("token", [""])[0]
+        if not supplied:
+            cookie = SimpleCookie(self.headers.get("Cookie", ""))
+            morsel = cookie.get("paperaudit_token")
+            supplied = morsel.value if morsel else ""
         return bool(supplied) and secrets.compare_digest(supplied, expected)
 
     def _require_auth(self) -> bool:
@@ -136,6 +151,8 @@ class PanelHandler(BaseHTTPRequestHandler):
         if pdf_parser not in {"native", "grobid"}:
             raise ValueError("pdf_parser 必须是 native 或 grobid")
         grobid_endpoint = str(data.get("grobid_endpoint") or "").strip() or None
+        if grobid_endpoint:
+            self.server.validate_endpoint(grobid_endpoint)
         venue = str(data.get("venue") or "").strip() or None
         venue_registry = str(data.get("venue_registry") or "").strip() or None
         return source, out, data.get("checklist") or None, validate_workflow(workflow) if workflow else None, pdf_parser, grobid_endpoint, venue, venue_registry
@@ -155,9 +172,20 @@ class PanelHandler(BaseHTTPRequestHandler):
         ids = data.get("finding_ids", [])
         if not isinstance(ids, list) or not ids:
             raise ValueError("finding_ids 必须是非空列表")
+        ids = self._canonical_finding_ids(state, ids)
         confirmed = {str(f.get("id")): f for f in state["findings"]["confirmed"]}
+        confirmed.update({str(f.get("uid")): f for f in state["findings"]["confirmed"] if f.get("uid")})
         decisions = state["decisions"]
-        invalid = [fid for fid in ids if fid not in confirmed or decisions.get(str(fid), {}).get("decision") != "accept"]
+        invalid = []
+        for raw_id in ids:
+            fid = str(raw_id)
+            finding = confirmed.get(fid)
+            if finding is None or (
+                decisions.get(str(finding.get("uid") or ""), {}).get("decision")
+                if finding.get("uid")
+                else decisions.get(str(finding.get("id") or ""), {}).get("decision")
+            ) != "accept":
+                invalid.append(raw_id)
         if invalid:
             raise ValueError(f"以下意见未经过作者 accept：{invalid}")
         plan = read_json(run / "revision.plan.json", {})
@@ -175,6 +203,22 @@ class PanelHandler(BaseHTTPRequestHandler):
         if not set(str(fid) for fid in ids) <= planned_ids:
             raise ValueError("有已接受意见不在当前修订计划中，请重新预览")
 
+    @staticmethod
+    def _canonical_finding_ids(state: dict, ids: list[object]) -> list[str]:
+        mapping = {
+            str(item.get("id")): str(item.get("id"))
+            for item in state.get("findings", {}).get("confirmed", [])
+            if item.get("id")
+        }
+        mapping.update(
+            {
+                str(item.get("uid")): str(item.get("id"))
+                for item in state.get("findings", {}).get("confirmed", [])
+                if item.get("uid") and item.get("id")
+            }
+        )
+        return [mapping.get(str(value), str(value)) for value in ids]
+
     def _resume_job(self, job_id: str) -> dict:
         record = JOBS.get(job_id)
         if record is None:
@@ -183,36 +227,40 @@ class PanelHandler(BaseHTTPRequestHandler):
         kind = str(record.get("kind", ""))
         if kind == "prepare":
             source, out, checklist, workflow, pdf_parser, grobid_endpoint, venue, venue_registry = self._prepare_inputs(payload)
-            work = lambda progress: prepare(source, out, checklist, workflow, progress=progress, pdf_parser=pdf_parser, grobid_endpoint=grobid_endpoint, venue=venue, venue_registry=venue_registry)
+            def work(progress):
+                return prepare(source, out, checklist, workflow, progress=progress, pdf_parser=pdf_parser, grobid_endpoint=grobid_endpoint, venue=venue, venue_registry=venue_registry)
         elif kind == "verify":
             run = self.server.safe_run(str(payload.get("run_dir") or record.get("run_dir", "")))
             checklist = payload.get("checklist") or None
-            work = lambda progress: verify(run, checklist, progress=progress)
+            def work(progress):
+                return verify(run, checklist, progress=progress)
         elif kind == "review":
             run = self.server.safe_run(str(payload.get("run_dir") or record.get("run_dir", "")))
             profile_id = str(payload.get("profile_id") or "").strip() or None
             verify_after = payload.get("verify_after") is not False
-            work = lambda progress: run_review(
-                run,
-                config_path=self.server.config_path,
-                profile_id=profile_id,
-                timeout=int(payload.get("timeout", 120) or 120),
-                verify_after=verify_after,
-                progress=progress,
-            )
+            def work(progress):
+                return run_review(
+                    run,
+                    config_path=self.server.config_path,
+                    profile_id=profile_id,
+                    timeout=int(payload.get("timeout", 120) or 120),
+                    verify_after=verify_after,
+                    progress=progress,
+                )
         elif kind == "panel":
             run = self.server.safe_run(str(payload.get("run_dir") or record.get("run_dir", "")))
             profiles = payload.get("profiles")
             if not isinstance(profiles, list) or len(set(str(item) for item in profiles)) < 2:
                 raise ValueError("Panel 恢复任务需要至少两个不同的模型 profile")
-            work = lambda progress: run_panel(
-                run,
-                profile_ids=[str(item) for item in profiles],
-                config_path=self.server.config_path,
-                timeout=int(payload.get("timeout", 120) or 120),
-                required_models=int(payload.get("required_models", 2) or 2),
-                progress=progress,
-            )
+            def work(progress):
+                return run_panel(
+                    run,
+                    profile_ids=[str(item) for item in profiles],
+                    config_path=self.server.config_path,
+                    timeout=int(payload.get("timeout", 120) or 120),
+                    required_models=int(payload.get("required_models", 2) or 2),
+                    progress=progress,
+                )
         elif kind == "apply":
             payload["confirm"] = True
             self._validate_apply(payload)
@@ -220,14 +268,15 @@ class PanelHandler(BaseHTTPRequestHandler):
             source = Path(str(payload.get("source", ""))).expanduser().resolve()
             ids = [str(value) for value in payload.get("finding_ids", [])]
             out_path = self.server.safe_output(str(payload["out"])) if payload.get("out") else None
-            work = lambda progress: apply_revision(
-                source,
-                run,
-                ids,
-                out_path=out_path,
-                text=payload.get("text") or None,
-                progress=progress,
-            )
+            def work(progress):
+                return apply_revision(
+                    source,
+                    run,
+                    ids,
+                    out_path=out_path,
+                    text=payload.get("text") or None,
+                    progress=progress,
+                )
         else:
             raise ValueError(f"任务类型不支持恢复：{kind}")
         resumed = JOBS.resume(job_id, work)
@@ -249,7 +298,12 @@ class PanelHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path in {"/", "/index.html"}:
                 body = UI_FILE.read_bytes()
-                self._send(200, body, "text/html; charset=utf-8")
+                headers: dict[str, str] = {}
+                if self.server.auth_token and parse_qs(parsed.query).get("token", [""])[0]:
+                    supplied = parse_qs(parsed.query).get("token", [""])[0]
+                    if secrets.compare_digest(supplied, self.server.auth_token):
+                        headers["Set-Cookie"] = f"paperaudit_token={quote(supplied, safe='')}; Path=/; HttpOnly; SameSite=Strict"
+                self._send(200, body, "text/html; charset=utf-8", extra_headers=headers)
                 return
             if parsed.path == "/api/health":
                 self._send(200, _json({"status": "ok", "run_root": str(self.server.run_root), "config_path": str(self.server.config_path)}))
@@ -348,6 +402,8 @@ class PanelHandler(BaseHTTPRequestHandler):
                 if pdf_parser not in {"native", "grobid"}:
                     raise ValueError("pdf_parser 必须是 native 或 grobid")
                 grobid_endpoint = str(data.get("grobid_endpoint") or "").strip() or None
+                if grobid_endpoint:
+                    self.server.validate_endpoint(grobid_endpoint)
                 result = prepare(source, out, data.get("checklist") or None, validate_workflow(workflow) if workflow else None, pdf_parser=pdf_parser, grobid_endpoint=grobid_endpoint, venue=str(data.get("venue") or "").strip() or None, venue_registry=str(data.get("venue_registry") or "").strip() or None)
                 append_trace(result, "ui_prepare_requested", source=str(source), panel=True)
                 append_trace(result, "ui_prepare_complete", panel=True)
@@ -392,18 +448,26 @@ class PanelHandler(BaseHTTPRequestHandler):
                 self._send(200, _json({"status": "ok", "deleted": path.name}))
                 return
             if parsed.path == "/api/llm/config":
+                raw_profiles = data.get("profiles", [])
+                for profile in raw_profiles if isinstance(raw_profiles, list) else []:
+                    if isinstance(profile, dict) and str(profile.get("base_url") or "").strip():
+                        self.server.validate_endpoint(str(profile["base_url"]))
                 config = save_llm_config(self.server.config_path, data)
                 self._send(200, _json({"status": "ok", "config": public_config(config), "path": str(self.server.config_path)}))
                 return
             if parsed.path == "/api/llm/test":
                 config = load_llm_config(self.server.config_path)
                 profile = select_profile(config, str(data.get("profile_id", "")) or None)
+                if str(profile.get("base_url") or "").strip():
+                    self.server.validate_endpoint(str(profile["base_url"]))
                 result = llm_chat(profile, [{"role": "user", "content": str(data.get("message") or "请只回复 OK，确认模型连接正常。")[:2000]}], timeout=30)
                 self._send(200, _json({"status": "ok", "profile": profile.get("id"), "result": result}))
                 return
             if parsed.path == "/api/llm/chat":
                 config = load_llm_config(self.server.config_path)
                 profile = select_profile(config, str(data.get("profile_id", "")) or None)
+                if str(profile.get("base_url") or "").strip():
+                    self.server.validate_endpoint(str(profile["base_url"]))
                 messages = data.get("messages")
                 if not isinstance(messages, list) or not messages:
                     raise ValueError("messages 必须是非空列表")
@@ -431,6 +495,8 @@ class PanelHandler(BaseHTTPRequestHandler):
                 config = load_llm_config(self.server.config_path)
                 profile_id = str(data.get("profile_id") or "").strip() or None
                 profile = select_profile(config, profile_id)
+                if str(profile.get("base_url") or "").strip():
+                    self.server.validate_endpoint(str(profile["base_url"]))
                 if profile.get("enabled") is False:
                     raise ValueError(f"模型 profile 已停用：{profile.get('id', '')}")
                 if str(profile.get("protocol", "")).casefold() == "host_agent":
@@ -468,6 +534,8 @@ class PanelHandler(BaseHTTPRequestHandler):
                 config = load_llm_config(self.server.config_path)
                 for profile_id in profiles:
                     profile = select_profile(config, profile_id)
+                    if str(profile.get("base_url") or "").strip():
+                        self.server.validate_endpoint(str(profile["base_url"]))
                     if profile.get("enabled") is False:
                         raise ValueError(f"模型 profile 已停用：{profile_id}")
                     if str(profile.get("protocol", "")).casefold() == "host_agent":
@@ -526,27 +594,48 @@ class PanelHandler(BaseHTTPRequestHandler):
                 if source_hash != str(manifest.get("hash", "")):
                     self._error(409, "论文源文件 hash 已变化，请重新 prepare")
                     return
-                finding_id = str(data.get("finding_id", ""))
+                requested_id = str(data.get("finding_id", ""))
+                requested_uid = str(data.get("finding_uid", ""))
                 decision = str(data.get("decision", ""))
                 findings = read_json(run / "findings.json", {})
-                confirmed = {str(item.get("id")) for item in findings.get("confirmed", [])} if isinstance(findings, dict) else set()
-                rejected = {str(item.get("id")) for item in findings.get("rejected", [])} if isinstance(findings, dict) else set()
-                if finding_id not in confirmed and finding_id not in rejected:
+                all_findings = [
+                    item
+                    for key in ("confirmed", "rejected")
+                    for item in (findings.get(key, []) if isinstance(findings, dict) else [])
+                    if isinstance(item, dict)
+                ]
+                finding = next(
+                    (
+                        item for item in all_findings
+                        if (requested_uid and str(item.get("uid") or "") == requested_uid)
+                        or (not requested_uid and str(item.get("id") or "") == requested_id)
+                    ),
+                    None,
+                )
+                if finding is None:
                     raise ValueError("找不到该审查意见")
+                finding_id = str(finding.get("id") or requested_id)
+                finding_uid = str(finding.get("uid") or "")
+                confirmed = {str(item.get("id")) for item in (findings.get("confirmed", []) if isinstance(findings, dict) else [])}
                 if decision == "accept" and finding_id not in confirmed:
                     raise ValueError("未通过证据门禁的意见不能 accept")
                 adjudication = read_json(run / "adjudication.json", {})
+                if not isinstance(adjudication, dict) or str(adjudication.get("source_hash", "")) != str(manifest.get("hash", "")):
+                    adjudication = {}
                 panel_row = next(
                     (
                         row for row in (adjudication.get("findings", []) if isinstance(adjudication, dict) else [])
-                        if isinstance(row, dict) and str(row.get("finding_id")) == finding_id
+                        if isinstance(row, dict) and (
+                            str(row.get("finding_uid") or "") == finding_uid
+                            or (not finding_uid and str(row.get("finding_id")) == finding_id)
+                        )
                     ),
                     None,
                 )
                 if decision == "accept" and panel_row and panel_row.get("verdict") in {"refuted", "unverifiable"}:
                     raise ValueError("panel 裁决为 refuted/unverifiable 的意见不能直接 accept")
-                row = append_decision(run, finding_id, decision, str(data.get("reason", "")), source_hash)
-                append_trace(run, "ui_decision_recorded", finding_id=finding_id, decision=decision, panel=True)
+                row = append_decision(run, finding_id, decision, str(data.get("reason", "")), source_hash, finding_uid=finding_uid)
+                append_trace(run, "ui_decision_recorded", finding_id=finding_id, finding_uid=finding_uid, decision=decision, panel=True)
                 self._send(200, _json({"decision": row, "state": build_state(run)}))
                 return
             if parsed.path == "/api/apply":
@@ -566,9 +655,20 @@ class PanelHandler(BaseHTTPRequestHandler):
                 ids = data.get("finding_ids", [])
                 if not isinstance(ids, list) or not ids:
                     raise ValueError("finding_ids 必须是非空列表")
+                ids = self._canonical_finding_ids(state, ids)
                 confirmed = {str(f.get("id")): f for f in state["findings"]["confirmed"]}
+                confirmed.update({str(f.get("uid")): f for f in state["findings"]["confirmed"] if f.get("uid")})
                 decisions = state["decisions"]
-                invalid = [fid for fid in ids if fid not in confirmed or decisions.get(str(fid), {}).get("decision") != "accept"]
+                invalid = []
+                for raw_id in ids:
+                    finding = confirmed.get(str(raw_id))
+                    decision = (
+                        decisions.get(str(finding.get("uid") or ""), {}).get("decision")
+                        if finding is not None and finding.get("uid")
+                        else decisions.get(str(finding.get("id") or ""), {}).get("decision") if finding is not None else None
+                    )
+                    if finding is None or decision != "accept":
+                        invalid.append(raw_id)
                 if invalid:
                     raise ValueError(f"以下意见未经过作者 accept：{invalid}")
                 output = data.get("out")
@@ -598,7 +698,8 @@ class PanelHandler(BaseHTTPRequestHandler):
                 self._validate_apply(data)
                 run = self.server.safe_run(str(data.get("run_dir", "")))
                 source = Path(str(data.get("source", ""))).expanduser().resolve()
-                ids = [str(fid) for fid in data.get("finding_ids", [])]
+                state = build_state(run)
+                ids = self._canonical_finding_ids(state, [str(fid) for fid in data.get("finding_ids", [])])
                 output = data.get("out")
                 out_path = self.server.safe_output(str(output)) if output else None
                 job_id = JOBS.start(

@@ -17,6 +17,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from paperaudit.models import Block, BlockKind, DocumentIR
+from paperaudit.llm import _validate_endpoint
 
 from .docx_reader import _extract_citations, _extract_figures, _extract_numerics
 
@@ -40,6 +41,7 @@ def read_grobid(
         raise FileNotFoundError(source)
     if source.suffix.casefold() != ".pdf":
         raise ValueError("GROBID 输入必须是 PDF")
+    _validate_endpoint(endpoint)
     payload = _multipart_pdf(source)
     request = urllib.request.Request(
         endpoint,
