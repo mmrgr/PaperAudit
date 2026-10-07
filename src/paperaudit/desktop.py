@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 import socket
+import sys
 from pathlib import Path
 
 from paperaudit.panel import main as panel_main
@@ -21,7 +22,20 @@ def _default_run_root() -> Path:
     return Path(local_app_data) / "PaperAudit" / "runs"
 
 
+def _configure_stdio() -> None:
+    """Keep help and diagnostics printable from a frozen Windows bundle."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="backslashreplace")
+        except (OSError, ValueError):
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _configure_stdio()
     parser = argparse.ArgumentParser(description="PaperAudit 论文审查与多 Agent 工作流桌面版")
     parser.add_argument("--run-root", default=str(_default_run_root()))
     parser.add_argument("--host", default="127.0.0.1")
